@@ -28,6 +28,28 @@ def main():
     # convert oe to rv
     oe_to_rv(oe, t)
 
+    #target state
+    atarg = 7345/RE
+    etarg = .67
+    itarg = 10*math.pi/180
+    Omegatarg = 20*math.pi/180
+    wtar = 20*math.pi/180
+    Mtarg = 20*math.pi/180
+    xT = numpy.array([[atarg], [etarg], [itarg], [Omegatarg], [wtarg], [Mtarg]])
+
+    icl = x0-xT
+    Kf = 100*numpy.eye(6)
+    Q = .1*numpy.eye(6)
+    Q[5,5] = 0
+    R = 1*eye(14)
+
+    #LF Model Parameters
+    A = numpy.zeros((6,6))
+    B = find_G_M(a0,e0,i0,w0)
+    u = numpy.zeros((len(tspan),14))
+    dist = numpy.zeros((len(tspan),6))
+
+
 
 
 def oe_to_rv(oe,t):
@@ -103,12 +125,56 @@ def kepler(oe,t,mu):
     #time=(E-e*math.sin(E))/math.sqrt(mu/a^3)+Tau
 
 
+def find_G_M(a,e,i,w):
+
+    G = numpy.zeros((6,14))
+
+    #alpha = [a0R a1R a2R b1R a0S a1S a2S b1S b2S a0W a1W a2W b1W b2W]'; %RSW
+
+    #a
+    G[0,3]=math.sqrt(a**3/mu)*e #b1R
+    G[0,4]=2*math.sqrt(a**3/mu)*math.sqrt(1-e**2) #a0S
 
 
+    #e
+    G[1,3]=.5*math.sqrt(1-e**2) #b1R
+    G[1,4]=-1.5*e #a0S
+    G[1,5]=1 #a1S
+    G[1,6]=-.25*e #a2S
+    G[1,:]=G[1,:]*math.sqrt(a/mu)*math.sqrt(1-e**2)
 
+    #i
+    G[2,10]=-1.5*e*math.cos(w) #a0W
+    G[2,11]=.5*(1+e**2)*math.cos(w) #a1W
+    G[2,12]=-.25*e*math.cos(w) #a2W
+    G[2,13]=-.5*math.sqrt(1-e**2)*math.sin(w) #b1W
+    G[2,14]=.25*e*math.sqrt(1-e**2)*math.sin(w) #b2W
+    G[2,:]=G[2,:]*math.sqrt(a/mu)/math.sqrt(1-e^2)
 
+    #Omega
+    G[3,9]=-1.5*e*math.sin(w) #a0W
+    G[3,10]=.5*(1+e^2)*math.sin(w) #a1W
+    G[3,11]=-.25*e*math.sin(w) #a2W
+    G[3,12]=.5*math.sqrt(1-e**2)*math.cos(w) #b1W
+    G[3,13]=-.25*e*math.sqrt(1-e**2)*math.cos(w) #b2W
+    G[3,:]=G[3,:]*math.sqrt(a/mu)*math.csc(i)/math.sqrt(1-e**2)
 
+    #w
+    G[4,0]=e*math.sqrt(1-e**2) #a0R
+    G[4,1]=-.5*math.sqrt(1-e**2) #a1R
+    G[4,7]=.5*(2-e**2) #b1S
+    G[4,8]=-.25*e #b2S
+    G[4,:]=G[4,:]*math.sqrt(a/mu)/e
+    G[4,:]=G[4,:]-math.cos(i)*G[3,:]
 
+    #M
+    G[5,0]=-2-e**2 #a0R
+    G[5,1]=2*e #a1R
+    G[5,3]=-.5*e**2 #a2R
+    G[5,:]=G[5,:]*math.sqrt(a/mu)
+    G[5,:]=G[5,:]+(1-math.sqrt(1-e**2))*(G[4,:]+G[3,:])+2*math.sqrt(1-e**2)*(math.sin(i/2))**2*G[3,:]-(G[4,:]+G[3,:])
+
+    return G
 
 
 
