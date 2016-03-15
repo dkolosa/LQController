@@ -1,7 +1,11 @@
+#Copyright 2015-2016 Daniel Kolosa
+#This program is distributed under the GPL, for more information
+#refer to LICENSE.txt
+
 #perform ASE targeting as an LQ optimal control algorithm
 
 import numpy
-from scipy import integrate
+from scipy.integrate import ode
 import math
 from math import pi
 
@@ -48,6 +52,11 @@ def main():
     B = find_G_M(a0,e0,i0,w0)
     u = numpy.zeros((len(tspan),14))
     dist = numpy.zeros((len(tspan),6))
+
+    #optimize LF model
+    yol=numpy.array([[icl],[0]])
+    Pbig = ode(findP(A,B,Q,R),tspan_bk,Kf[:]).set_integrator(backend, nsteps=1)
+
 
 
 
@@ -176,7 +185,14 @@ def find_G_M(a,e,i,w):
 
     return G
 
+def findP(A,B,Q,R):
 
+    P = numpy.zeros(6)
+    P[:] = Pvec
+
+    Pdot = -(numpy.transpose(A)*P+P*A-P*B*(R**-1)*numpy.transpose(B)*P+Q)
+
+    return (Pvecdot=Pdot(:))
 
 
 
