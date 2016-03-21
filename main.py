@@ -1,10 +1,12 @@
+#!/usr/bin/python3
+
 #Copyright 2015-2016 Daniel Kolosa
 #This program is distributed under the GPL, for more information
 #refer to LICENSE.txt
 
 #perform ASE targeting as an LQ optimal control algorithm
 
-import numpy
+import numpy as np
 from scipy.integrate import ode
 import math
 from math import pi
@@ -12,8 +14,9 @@ from math import pi
 
 def main():
     # Constants
-    earth_radius = 6378
-    mu = 398600 * 60 ** 4 / earth_radius ** 3
+    global mu
+    RE = 6378
+    mu = 398600 * 60 ** 4 / RE ** 3
     # Initial Orbit State
     a0 = 6678 / RE  # km
     e0 = 0.67
@@ -22,41 +25,70 @@ def main():
     w0 = 20 * pi / 180  # rad
     M0 = 20 * pi / 180  # rad
     n0 = math.sqrt(mu / a0 ** 3)
-    x0 = numpy.array([[a0], [e0], [i0], [Omega0], [w0], [M0]])
+    x0 = np.array([[a0], [e0], [i0], [Omega0], [w0], [M0]])
     # transfer time
     t0 = 0
     ttarg = 2 * pi * math.sqrt(a0 ** 3 / mu) * 20
     dt = ttarg / 500
-    tspan = numpy.array([range(t0, ttarg, dt)])
-    tspan_bk = numpy.array([range(ttarg, dt, 0)])
+    tspan = np.arange(t0, ttarg, dt)
+    tspan_bk = tspan[::-1]
     # convert oe to rv
-    oe_to_rv(oe, t)
+    [r0, v0] = oe_to_rv(x0, t0)
 
     #target state
     atarg = 7345/RE
     etarg = .67
     itarg = 10*math.pi/180
     Omegatarg = 20*math.pi/180
-    wtar = 20*math.pi/180
+    wtarg = 20*math.pi/180
     Mtarg = 20*math.pi/180
-    xT = numpy.array([[atarg], [etarg], [itarg], [Omegatarg], [wtarg], [Mtarg]])
+    xT = np.array([[atarg], [etarg], [itarg], [Omegatarg], [wtarg], [Mtarg]])
 
     icl = x0-xT
-    Kf = 100*numpy.eye(6)
-    Q = .1*numpy.eye(6)
+    Kf = 100*np.eye(6)
+    Q = .1*np.eye(6)
     Q[5,5] = 0
     R = 1*eye(14)
 
     #LF Model Parameters
-    A = numpy.zeros((6,6))
+    A = np.zeros((6,6))
     B = find_G_M(a0,e0,i0,w0)
-    u = numpy.zeros((len(tspan),14))
-    dist = numpy.zeros((len(tspan),6))
+    u = np.zeros((len(tspan),14))
 
     #optimize LF model
-    yol=numpy.array([[icl],[0]])
+    yol=np.array([[icl],[0]])
     Pbig = ode(findP(A,B,Q,R),tspan_bk,Kf[:]).set_integrator(backend, nsteps=1)
 
+    Yl = ode(ASE,tspan,yol).set_integrator(backend, nsteps=1)
+
+    al = Yl[:,0]+atarg
+    el = Yl[:,1]+etarg
+    il = Yl[:,2]+itarg
+    Omegal = Yl[:,3]+Omegatarg
+    wl = Yl[:,4]+wtarg
+    Ml=zeros(len(tspan),1)
+    rl = np.zeros(len(al),3)
+    vl = np.zeros(len(al),3)
+    for j in range(1,len(tspan)):
+        nt=sqrt(mu/al[j]**3)
+        Ml[j] = Yl[j,5]+Mtarg+nt*tspan[j]
+        Ml[j] %= (2*math.pi)
+        xl = np.array([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]])
+        [rl[j,0:2],vl[j,0:2]] = oe_to_rv(xl,tspan[j]) #convert orbital elements to r,v
+
+    #calculate the direction in terms of the x,y,z
+    rhat = np.zeros(len(tspan),3)
+    what = np.zeros(len(tspan),3)
+    shat = np.zeros(len(tspan),3)
+    that = np.zeros(len(tspan),3)
+
+    # for k in range(1,len(rl))
+    #     rcv = cross(rl(k,:),vl(k,:))
+    #     rhat(k,:) = rl(k,:)/norm(rl(k,:))
+    #     what(k,:) = rcv/norm(rcv)
+    #     shat(k,:) = cross(what(k,:),rhat(k,:))
+    #     fthat = rhat(k,:) + what(k,:) + shat(k,:)
+    #     that(k,:) = fthat/norm(fthat)
 
 
 
@@ -65,9 +97,9 @@ def oe_to_rv(oe,t):
     a=oe[0]
     e=oe[1]
     i=oe[2]
-    Omega=oe[4]
-    w=oe[5]
-    M=oe[6]
+    Omega=oe[3]
+    w=oe[4]
+    M=oe[5]
     #%Determine orbit type
     if a<0 or e<0 or e>1 or math.fabs(i)>2*math.pi or math.fabs(Omega)>2*math.pi or math.fabs(w)>2*math.pi: #problem
         print(a)
@@ -76,15 +108,15 @@ def oe_to_rv(oe,t):
         print(Omega)
         print(w)
         print('Invalid orbital element(s)')
-    xhat=numpy.array([1, 0, 0])
-    yhat=numpy.array([0, 1, 0])
-    zhat=numpy.array([0, 0, 1])
+    xhat=np.array([1, 0, 0])
+    yhat=np.array([0, 1, 0])
+    zhat=np.array([0, 0, 1])
 
-    nu=my_kepler(oe, t, mu)
+    nu=kepler(oe, t)
     nhat=math.cos(Omega)*xhat+math.sin(Omega)*yhat
     # hhat=sin(i)*sin(Omega)*xhat-sin(i)*cos(Omega)*yhat+cos(i)*zhat
     rhatT=-math.cos(i)*math.sin(Omega)*xhat+math.cos(i)*math.cos(Omega)*yhat+math.sin(i)*zhat
-    rmag=a*(1-e^2)/(1+e*math.cos(nu))
+    rmag=a*(1-e**2)/(1+e*math.cos(nu))
     vmag=math.sqrt(mu/rmag*(2-rmag/a))
     gamma=math.atan2(e*math.sin(nu),1+e*math.cos(nu))
     u=w+nu
@@ -93,8 +125,10 @@ def oe_to_rv(oe,t):
     r=rmag*rhat
     v=vmag*vhat
 
+    return np.array([r, v])
 
-def kepler(oe,t,mu):
+
+def kepler(oe,t):
     a = oe[0]
     e = oe[1]
     i = oe[2]
@@ -122,21 +156,21 @@ def kepler(oe,t,mu):
                 fp = 1-ec
                 fpp = es
                 fppp = ec
-                dx = -f/(fp+dx*fpp/2+dx^2*fppp/6)
+                dx = -f/(fp+dx*fpp/2+dx**2*fppp/6)
                 x = x+dx
     if count == 10: #check that Newton's method converges
           nu = 'undefined'
     #    else %test that computations were correct
-    #       time=(E-e*sin(E))/sqrt(mu/a^3)+Tau
+    #       time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
     else:
         nu = 0
         E = 0
-    #time=(E-e*math.sin(E))/math.sqrt(mu/a^3)+Tau
+    #time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
 
 
 def find_G_M(a,e,i,w):
 
-    G = numpy.zeros((6,14))
+    G = np.zeros((6,14))
 
     #alpha = [a0R a1R a2R b1R a0S a1S a2S b1S b2S a0W a1W a2W b1W b2W]'; %RSW
 
@@ -187,14 +221,15 @@ def find_G_M(a,e,i,w):
 
 def findP(A,B,Q,R):
 
-    P = numpy.zeros(6)
+    P = np.zeros(6)
     P[:] = Pvec
 
-    Pdot = -(numpy.transpose(A)*P+P*A-P*B*(R**-1)*numpy.transpose(B)*P+Q)
+    Pdot = -(np.transpose(A)*P+P*A-P*B*(R**-1)*np.transpose(B)*P+Q)
 
-    return (Pvecdot=Pdot(:))
+    return Pdot
 
-
+if __name__=='__main__':
+    main()
 
 
 
