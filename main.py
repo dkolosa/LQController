@@ -9,12 +9,13 @@
 import numpy as np
 from scipy.integrate import ode
 import math
+import mpmath
 from math import pi
 
 
 def main():
     # Constants
-    global mu
+    global mu, A, B, R, Q
     RE = 6378
     mu = 398600 * 60 ** 4 / RE ** 3
     # Initial Orbit State
@@ -48,7 +49,7 @@ def main():
     Kf = 100*np.eye(6)
     Q = .1*np.eye(6)
     Q[5,5] = 0
-    R = 1*eye(14)
+    R = 1*np.eye(14)
 
     #LF Model Parameters
     A = np.zeros((6,6))
@@ -57,7 +58,7 @@ def main():
 
     #optimize LF model
     yol=np.array([[icl],[0]])
-    Pbig = ode(findP(A,B,Q,R),tspan_bk,Kf[:]).set_integrator(backend, nsteps=1)
+    Pbig = ode(findP, tspan_bk,Kf[:]).set_integrator(backend, nsteps=1)
 
     Yl = ode(ASE,tspan,yol).set_integrator(backend, nsteps=1)
 
@@ -121,7 +122,7 @@ def oe_to_rv(oe,t):
     gamma=math.atan2(e*math.sin(nu),1+e*math.cos(nu))
     u=w+nu
     rhat=math.cos(u)*nhat+math.sin(u)*rhatT
-    vhat=sin(gamma-u)*nhat+cos(gamma-u)*rhatT
+    vhat=math.sin(gamma-u)*nhat+math.cos(gamma-u)*rhatT
     r=rmag*rhat
     v=vmag*vhat
 
@@ -158,14 +159,17 @@ def kepler(oe,t):
                 fppp = ec
                 dx = -f/(fp+dx*fpp/2+dx**2*fppp/6)
                 x = x+dx
-    if count == 10: #check that Newton's method converges
-          nu = 'undefined'
-    #    else %test that computations were correct
+        if count == 10: #check that Newton's method converges
+            nu = 'undefined'
+    #       else %test that computations were correct
     #       time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
+
     else:
         nu = 0
         E = 0
     #time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
+
+    return nu
 
 
 def find_G_M(a,e,i,w):
@@ -187,20 +191,20 @@ def find_G_M(a,e,i,w):
     G[1,:]=G[1,:]*math.sqrt(a/mu)*math.sqrt(1-e**2)
 
     #i
-    G[2,10]=-1.5*e*math.cos(w) #a0W
-    G[2,11]=.5*(1+e**2)*math.cos(w) #a1W
-    G[2,12]=-.25*e*math.cos(w) #a2W
-    G[2,13]=-.5*math.sqrt(1-e**2)*math.sin(w) #b1W
-    G[2,14]=.25*e*math.sqrt(1-e**2)*math.sin(w) #b2W
-    G[2,:]=G[2,:]*math.sqrt(a/mu)/math.sqrt(1-e^2)
+    G[2,9]=-1.5*e*math.cos(w) #a0W
+    G[2,10]=.5*(1+e**2)*math.cos(w) #a1W
+    G[2,11]=-.25*e*math.cos(w) #a2W
+    G[2,12]=-.5*math.sqrt(1-e**2)*math.sin(w) #b1W
+    G[2,13]=.25*e*math.sqrt(1-e**2)*math.sin(w) #b2W
+    G[2,:]=G[2,:]*math.sqrt(a/mu)/math.sqrt(1-e**2)
 
     #Omega
     G[3,9]=-1.5*e*math.sin(w) #a0W
-    G[3,10]=.5*(1+e^2)*math.sin(w) #a1W
+    G[3,10]=.5*(1+e**2)*math.sin(w) #a1W
     G[3,11]=-.25*e*math.sin(w) #a2W
     G[3,12]=.5*math.sqrt(1-e**2)*math.cos(w) #b1W
     G[3,13]=-.25*e*math.sqrt(1-e**2)*math.cos(w) #b2W
-    G[3,:]=G[3,:]*math.sqrt(a/mu)*math.csc(i)/math.sqrt(1-e**2)
+    G[3,:]=G[3,:]*math.sqrt(a/mu)*mpmath.csc(i)/math.sqrt(1-e**2)
 
     #w
     G[4,0]=e*math.sqrt(1-e**2) #a0R
@@ -219,14 +223,33 @@ def find_G_M(a,e,i,w):
 
     return G
 
-def findP(A,B,Q,R):
+def findP(t,Pvec):
 
     P = np.zeros(6)
     P[:] = Pvec
 
     Pdot = -(np.transpose(A)*P+P*A-P*B*(R**-1)*np.transpose(B)*P+Q)
 
-    return Pdot
+    return Pdot[:]
+
+def ASE(t,y):
+    x = y[1:6]+xT
+    Pvec = scipy.interp(t, tspan, Pbig)
+
+    P=np.zeros(6)
+    P[:]=Pvec
+
+    nt=math.sqrt(mu/x[0]**3)
+    F=np.array([np.zeros((5,1)), [nt]])
+
+    u_t = -(R**-1)*np.transpose(B)*P*y[0:5]
+
+    dx = A*x + B*u_t
+    dJ = np.transpose(y[0:5])*Q*y[0:5] + np.transpose(u_t)*R*u_t
+
+    dxl = [[dx],[dJ]]
+
+    return dxl
 
 if __name__=='__main__':
     main()
