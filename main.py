@@ -7,7 +7,7 @@
 #perform ASE targeting as an LQ optimal control algorithm
 
 import numpy as np
-from scipy.integrate import ode
+from scipy.integrate import odeint
 import math
 import mpmath
 from math import pi
@@ -17,33 +17,41 @@ def main():
     # Constants
     global mu, A, B, R, Q
     RE = 6378
+    deg_to_rad = pi/180
     mu = 398600 * 60 ** 4 / RE ** 3
+    
     # Initial Orbit State
     a0 = 6678 / RE  # km
     e0 = 0.67
-    i0 = 20 * math.pi / 180  # rad
-    Omega0 = 20 * math.pi / 180  # rad
-    w0 = 20 * pi / 180  # rad
-    M0 = 20 * pi / 180  # rad
-    n0 = math.sqrt(mu / a0 ** 3)
+    i0 = 20 * deg_to_rad # rad
+    Omega0 = 20 * deg_to_rad  # rad
+    w0 = 20 * deg_to_rad # rad
+    M0 = 20 * deg_to_rad  # rad
+
+    n0 = math.sqrt(mu / a0 ** 3) # Mean motion
+
+    # Initial COnditions
     x0 = np.array([[a0], [e0], [i0], [Omega0], [w0], [M0]])
+
     # transfer time
     t0 = 0
     ttarg = 2 * pi * math.sqrt(a0 ** 3 / mu) * 20
     dt = ttarg / 500
     tspan = np.arange(t0, ttarg, dt)
     tspan_bk = tspan[::-1]
-    # convert oe to rv
+
+    # convert orbital elements to Cartesian
     [r0, v0] = oe_to_rv(x0, t0)
 
-    #target state
+    # target orbit state
     atarg = 7345/RE
     etarg = .67
-    itarg = 10*math.pi/180
-    Omegatarg = 20*math.pi/180
-    wtarg = 20*math.pi/180
-    Mtarg = 20*math.pi/180
-    xT = np.array([[atarg], [etarg], [itarg], [Omegatarg], [wtarg], [Mtarg]])
+    itarg = 10 * deg_to_rad
+    Omegatarg = 20 * deg_to_rad
+    wtarg = 20 * deg_to_rad
+    Mtarg = 20 * deg_to_rad
+    xT = np.array([[atarg], [etarg], [itarg], 
+                   [Omegatarg], [wtarg], [Mtarg]])
 
     icl = x0-xT
     Kf = 100*np.eye(6)
@@ -51,16 +59,16 @@ def main():
     Q[5,5] = 0
     R = 1*np.eye(14)
 
-    #LF Model Parameters
+    # LF Model Parameters
     A = np.zeros((6,6))
     B = find_G_M(a0,e0,i0,w0)
     u = np.zeros((len(tspan),14))
 
-    #optimize LF model
+    # optimize LF model
     yol=np.array([[icl],[0]])
-    Pbig = ode(findP, tspan_bk,Kf[:]).set_integrator(backend, nsteps=1)
+    Pbig = odeint(findP, tspan_bk,Kf[:])
 
-    Yl = ode(ASE,tspan,yol).set_integrator(backend, nsteps=1)
+    Yl = odeint(ASE,tspan,yol)
 
     al = Yl[:,0]+atarg
     el = Yl[:,1]+etarg
@@ -70,12 +78,14 @@ def main():
     Ml=zeros(len(tspan),1)
     rl = np.zeros(len(al),3)
     vl = np.zeros(len(al),3)
+
     for j in range(1,len(tspan)):
         nt=sqrt(mu/al[j]**3)
         Ml[j] = Yl[j,5]+Mtarg+nt*tspan[j]
         Ml[j] %= (2*math.pi)
         xl = np.array([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]])
-        [rl[j,0:2],vl[j,0:2]] = oe_to_rv(xl,tspan[j]) #convert orbital elements to r,v
+        # Convert orbital elements to Cartesian
+        [rl[j,0:2],vl[j,0:2]] = oe_to_rv(xl,tspan[j]) 
 
     #calculate the direction in terms of the x,y,z
     rhat = np.zeros(len(tspan),3)
@@ -83,15 +93,34 @@ def main():
     shat = np.zeros(len(tspan),3)
     that = np.zeros(len(tspan),3)
 
-    # for k in range(1,len(rl))
-    #     rcv = cross(rl(k,:),vl(k,:))
-    #     rhat(k,:) = rl(k,:)/norm(rl(k,:))
-    #     what(k,:) = rcv/norm(rcv)
-    #     shat(k,:) = cross(what(k,:),rhat(k,:))
-    #     fthat = rhat(k,:) + what(k,:) + shat(k,:)
-    #     that(k,:) = fthat/norm(fthat)
+    for k in range(1,len(rl))
+        rcv = cross(rl(k,:),vl(k,:))
+        rhat(k,:) = rl(k,:)/norm(rl(k,:))
+        what(k,:) = rcv/norm(rcv)
+        shat(k,:) = cross(what(k,:),rhat(k,:))
+        fthat = rhat(k,:) + what(k,:) + shat(k,:)
+        that(k,:) = fthat/norm(fthat)
 
 
+    E = np.zeros(range(tspan))
+    FR = np.zeros(len(tspan))
+    FS = np.zeros(len(tspan))
+    FW = np.zeros(len(tspan))
+    FT = np.zeros(len(tspan))
+
+    # COmpute the Input vector
+    for j in range(len(tspan)):
+        Pvec = Pbig[j,:]
+        P = np.zeros(6, 6)
+        P[:] = Pvec
+        u[j,:] = np.dot(np.dot(np.dot(-np.inv(R),B.T),P), Yl[j,0:5]).T
+        E[j] = kepler([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]], tspan)
+
+        # Compute the Thrust Fourier Coefficients
+        FR[j] = u[j,0] + u[j,1] * np.cos(E[j]) + u[j,2] * np.cos(2*E[j]) + u[j,3] * np.sin(E[j])
+        FS[j] = u[j,4] + u[j,5] * np.cos(E[j]) + u[j,6] * np.cos(2*E[j]) + u[j,7] * np.sin(E[j]) + u[j,8]*np.sin(2*E[j])
+        FW[j] = u[j,9] + u[j,10] * np.cos(E[j]) + u[j,11] * np.cos(2*E[j]) + u[j,12] * np.sin(E[j]) + u[j,14]*np.sin(2*E[j])
+        FT[j] = np.sqrt(FR[j]**2 + Fs[j]**2 + FW[j]**2)
 
 
 def oe_to_rv(oe,t):
@@ -130,6 +159,7 @@ def oe_to_rv(oe,t):
 
 
 def kepler(oe,t):
+    """ Using kepler's equations to calculate True Anomaly"""
     a = oe[0]
     e = oe[1]
     i = oe[2]
@@ -173,6 +203,7 @@ def kepler(oe,t):
 
 
 def find_G_M(a,e,i,w):
+    """ Use Gaussian euqtions to compute inputs  """
 
     G = np.zeros((6,14))
 
@@ -219,12 +250,14 @@ def find_G_M(a,e,i,w):
     G[5,1]=2*e #a1R
     G[5,3]=-.5*e**2 #a2R
     G[5,:]=G[5,:]*math.sqrt(a/mu)
-    G[5,:]=G[5,:]+(1-math.sqrt(1-e**2))*(G[4,:]+G[3,:])+2*math.sqrt(1-e**2)*(math.sin(i/2))**2*G[3,:]-(G[4,:]+G[3,:])
+    G[5,:]=G[5,:]+(1-math.sqrt(1-e**2))*(G[4,:]+G[3,:])+
+            2*math.sqrt(1-e**2)*(math.sin(i/2))**2
+            *G[3,:]-(G[4,:]+G[3,:])
 
     return G
 
 def findP(t,Pvec):
-
+    """ Ricatti Equation """
     P = np.zeros(6)
     P[:] = Pvec
 
@@ -250,6 +283,7 @@ def ASE(t,y):
     dxl = [[dx],[dJ]]
 
     return dxl
+
 
 if __name__=='__main__':
     main()
