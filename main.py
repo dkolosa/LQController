@@ -10,6 +10,7 @@ import numpy as np
 from scipy.integrate import odeint
 import scipy
 import mpmath
+from scipy.interpolate import interp1d
 
 iAse = 1
 
@@ -37,7 +38,7 @@ def main():
     t0 = 0
     ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 20
     dt = ttarg / 500
-    tspan = np.arange(t0, ttarg, dt)
+    tspan = np.linspace(t0, ttarg, 100)
     tspan_bk = tspan[::-1]
 
     # convert orbital elements to Cartesian
@@ -70,7 +71,7 @@ def main():
     Pbig = Pbig[::-1]
 
     iAse = 0
-    Yl = odeint(ASE, yol, tspan, args=(A, B, R, Q, xT, Pbig))
+    Yl = odeint(ASE, yol, tspan, args=(A, B, R, Q, xT, Pbig, tspan))
 
     al = Yl[:,0] + atarg
     el = Yl[:,1] + etarg
@@ -81,6 +82,7 @@ def main():
     rl = np.zeros((len(al), 3))
     vl = np.zeros((len(al), 3))
 
+    Jl = Yl[:,6]
     for j in range(1, len(tspan)):
         nt=np.sqrt(mu/al[j]**3)
         Ml[j] = Yl[j,5]+Mtarg+nt*tspan[j]
@@ -124,7 +126,7 @@ def main():
 
     # Use Newton's EOM
     y0Newt = np.append((r0, v0), 0)
-    YNewt = odeint('Newt_EOM', y0Newt, tspan)
+    YNewt = odeint(Newt_EOM, y0Newt, tspan, args=(u, tspan))
 
     aNewt = np.zeros((len(tspan), 1))
     eNewt = np.zeros((len(tspan), 1))
@@ -153,7 +155,7 @@ def main():
     plt.plot(tspan, Ml, tspan, MNewt)
 
 
-def oe_to_rv(oe,t):
+def oe_to_rv(oe, t):
     """ Convert the orbital elements to Cartesian """
     a, e, i, Omega, w, M = oe[0], oe[1], oe[2], oe[3], oe[4], oe[5]
 
@@ -184,8 +186,10 @@ def oe_to_rv(oe,t):
 
     return np.array([r, v])
 
+def rv_to_oe()
 
-def kepler(oe,t):
+
+def kepler(oe, t):
     """ Using kepler's equations to calculate True Anomaly"""
     a = oe[0]
     e = oe[1]
@@ -229,7 +233,7 @@ def kepler(oe,t):
     return nu
 
 
-def find_G_M(a,e,i,w):
+def find_G_M(a, e, i, w):
     """ Use Gaussian equations to compute inputs  """
 
     G = np.zeros((6,14))
@@ -291,19 +295,21 @@ def findP(Pvec, t, A, B, R, Q):
     return Pdot.flatten()
 
 
-def ASE(y, t, A, B, R, Q, xT, Pbig):
+def ASE(y, t, A, B, R, Q, xT, Pbig, tspan):
     global iAse
     yin = np.reshape(y[0:6], (-1,1))
     x = np.reshape(y[0:6], (-1, 1)) + xT
-    if iAse >= 500:
-        P = np.reshape(Pbig[-1, :], (6, 6))
+
+    if t > tspan[-1]:
+        Pvec = Pbig[-1, :]
     else:
-        P = np.reshape(Pbig[iAse,:], (6, 6))
-    iAse += 1
+        Pvec = interp1d(tspan, Pbig, axis=0)(t)
+
+    P = np.reshape(Pvec, (6, 6))
     # P = np.interp(tspan, t, Pbig[:, 0])
     #np.interp(t,tspan,Pbig[:,1-36]
     nt = np.sqrt(mu/x[0]**3)
-    F = np.array([np.zeros((5, 1)), [nt]])
+    # F = np.array([np.zeros((5, 1)), [nt]])
 
     u_t = -(np.linalg.inv(R)).dot(B.T).dot(P).dot(yin)
 
@@ -313,8 +319,67 @@ def ASE(y, t, A, B, R, Q, xT, Pbig):
 
     dxl = np.vstack((dx, dJ))
 
-    return dxl[:,0]
+    return np.reshape(dxl, (-1))
 
+
+def Newt_EOM(y, t, u, tspan):
+    """ Differntial 2-body problem with Force thrust acceleration"""
+
+    rx, ry, rz = y[0], y[1], y[2]
+    vx, vy, vz = y[3], y[4], y[5]
+
+    r = np.array([rx, ry, rz])
+    v = np.array([vx, vy, vz])
+
+    # Calculate the Eccentric Anomaly to determine the thrust-acceleration
+    r_hat = r / np.linalg.norm(r)
+    h = np.cross(r, v)
+    h_hat = h / np.linalg.norm(h)
+    hr_hat = np.cross(h_hat, r_hat)
+    e_vec = np.cross(v, h)/mu - r_hat
+    e = np.linalg.norm(e_vec)
+
+    # Check orbit shape
+    if (1-e)/(1+e) < 0:
+        print('e: {0}, \t t: {1}'.format(e, t))
+
+    # True Anomaly
+    theta = np.arctan2(np.dot(h_hat,np.cross(e_vec, r)), np.dot(e_vec,r))
+    # Eccentric Anomaly
+    E = 2 * np.arctan2(np.sqrt(1-e) * np.tan(theta/2), np.sqrt(1+e))
+
+    if E < 0:
+        E += 2*np.pi
+
+    index = np.argwhere(tspan == t)
+
+    if t > tspan[-1]:
+        alpha = np.reshape(u[-1, :], (-1))
+    else:
+        alpha = np.reshape(interp1d(tspan, u, axis=0)(t), (-1))
+
+    # Determine the alpha/beta coefficients for the Thrust Fourier Coefficients
+    # alpha = np.reshape(alpha, (-1))
+
+    F_R = alpha[0] + alpha[1]*np.cos(E) + alpha[2]*np.cos(2*E) + alpha[3]*2*np.sin(E)
+    F_S = alpha[4] + alpha[5]*np.cos(E) + alpha[6]*np.cos(2*E) + alpha[7]*np.sin(E) + alpha[8]*np.sin(2*E)
+    F_W = alpha[9] + alpha[10]*np.cos(E) + alpha[11]*np.cos(2*E) + alpha[12]*np.sin(E) + alpha[13]*np.sin(2*E)
+
+    thrust = F_R*r_hat + F_S*r_hat + F_W*r_hat
+
+    c = -mu / (np.linalg.norm(r) ** 3)
+
+    dy = np.zeros(7)
+
+    dy[0] = vx
+    dy[1] = vy
+    dy[2] = vz
+    dy[3] = c*rx*thrust[0]
+    dy[4] = c*ry*thrust[1]
+    dy[5] = c*rz*thrust[2]
+    dy[6] = np.sqrt(F_R**2 + F_S**2 + F_W**2)
+
+    return dy
 
 if __name__ == '__main__':
     main()
