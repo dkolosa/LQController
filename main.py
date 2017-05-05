@@ -8,12 +8,14 @@
 
 import numpy as np
 from scipy.integrate import odeint
+import scipy
 import mpmath
 
+iAse = 1
 
 def main():
     # Constants
-    global mu, A, B, R, Q
+    global mu, iAse
     RE = 6378
     deg_to_rad = np.pi/180
     mu = 398600 * 60 ** 4 / RE ** 3
@@ -26,9 +28,9 @@ def main():
     w0 = 20 * deg_to_rad # rad
     M0 = 20 * deg_to_rad  # rad
 
-    n0 = np.sqrt(mu / a0 ** 3) # Mean motion
+    n0 = np.sqrt(mu / a0 ** 3)  # Mean motion
 
-    # Initial COnditions
+    # Initial Conditions
     x0 = np.array([[a0], [e0], [i0], [Omega0], [w0], [M0]])
 
     # transfer time
@@ -54,44 +56,46 @@ def main():
     icl = x0-xT
     Kf = 100*np.eye(6)
     Q = .1*np.eye(6)
-    Q[5,5] = 0
+    Q[5, 5] = 0.0
     R = 1*np.eye(14)
 
-    # LF Model Parameters
-    A = np.zeros((6,6))
+    # Low Fidelity Model Parameters
+    A = np.zeros((6, 6))
     B = find_G_M(a0, e0, i0, w0)
-    u = np.zeros((len(tspan),14))
+    u = np.zeros((len(tspan), 14))
 
     # optimize LF model
-    yol = [[icl],[0]]
-    Pbig = odeint(findP, Kf[:], tspan_bk)
+    yol = np.append(icl, 0)
+    Pbig = odeint(findP, Kf.flatten(), tspan_bk, args=(A, B, R, Q))
+    Pbig = Pbig[::-1]
 
-    Yl = odeint(ASE, yol, tspan)
+    iAse = 0
+    Yl = odeint(ASE, yol, tspan, args=(A, B, R, Q, xT, Pbig))
 
-    al = Yl[:,0]+atarg
-    el = Yl[:,1]+etarg
-    il = Yl[:,2]+itarg
-    Omegal = Yl[:,3]+Omegatarg
-    wl = Yl[:,4]+wtarg
-    Ml = np.zeros(len(tspan),1)
-    rl = np.zeros(len(al),3)
-    vl = np.zeros(len(al),3)
+    al = Yl[:,0] + atarg
+    el = Yl[:,1] + etarg
+    il = Yl[:,2] + itarg
+    Omegal = Yl[:,3] + Omegatarg
+    wl = Yl[:,4] + wtarg
+    Ml = np.zeros((len(tspan), 1))
+    rl = np.zeros((len(al), 3))
+    vl = np.zeros((len(al), 3))
 
-    for j in range(1,len(tspan)):
+    for j in range(1, len(tspan)):
         nt=np.sqrt(mu/al[j]**3)
         Ml[j] = Yl[j,5]+Mtarg+nt*tspan[j]
         Ml[j] %= (2*np.pi)
         xl = np.array([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]])
         # Convert orbital elements to Cartesian
-        [rl[j,0:2],vl[j,0:2]] = oe_to_rv(xl,tspan[j]) 
+        [rl[j, 0:3], vl[j, 0:3]] = oe_to_rv(xl, tspan[j])
 
     #calculate the direction in terms of the x,y,z
-    rhat = np.zeros(len(tspan),3)
-    what = np.zeros(len(tspan),3)
-    shat = np.zeros(len(tspan),3)
-    that = np.zeros(len(tspan),3)
+    rhat = np.zeros((len(tspan), 3))
+    what = np.zeros((len(tspan), 3))
+    shat = np.zeros((len(tspan), 3))
+    that = np.zeros((len(tspan), 3))
 
-    for k in range(1,len(rl))
+    for k in range(len(rl)):
         rcv = np.cross(rl[k,:],vl[k,:])
         rhat[k,:] = rl[k,:]/np.linalg.norm(rl[k,:])
         what[k,:] = rcv/np.linalg.norm(rcv)
@@ -99,55 +103,62 @@ def main():
         fthat = rhat[k,:] + what[k,:] + shat[k,:]
         that[k,:] = fthat/np.linalg.norm(fthat)
 
-
-    E = np.zeros(range(tspan))
+    E = np.zeros(len(tspan))
     FR = np.zeros(len(tspan))
     FS = np.zeros(len(tspan))
     FW = np.zeros(len(tspan))
     FT = np.zeros(len(tspan))
 
-    # COmpute the Input vector
+    # Compute the Input vector
     for j in range(len(tspan)):
         Pvec = Pbig[j,:]
-        P = np.zeros(6, 6)
-        P[:] = Pvec
-        u[j,:] = np.dot(np.dot(np.dot(-np.inv(R),B.T),P), Yl[j,0:5]).T
+        P = np.reshape(Pvec,(6,6))
+        u[j,:] = -np.linalg.inv(R).dot(B.T).dot(P).dot(Yl[j,0:6]).T
         E[j] = kepler([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]], tspan)
 
         # Compute the Thrust Fourier Coefficients
         FR[j] = u[j,0] + u[j,1] * np.cos(E[j]) + u[j,2] * np.cos(2*E[j]) + u[j,3] * np.sin(E[j])
         FS[j] = u[j,4] + u[j,5] * np.cos(E[j]) + u[j,6] * np.cos(2*E[j]) + u[j,7] * np.sin(E[j]) + u[j,8]*np.sin(2*E[j])
-        FW[j] = u[j,9] + u[j,10] * np.cos(E[j]) + u[j,11] * np.cos(2*E[j]) + u[j,12] * np.sin(E[j]) + u[j,14]*np.sin(2*E[j])
-        FT[j] = np.sqrt(FR[j]**2 + Fs[j]**2 + FW[j]**2)
+        FW[j] = u[j,9] + u[j,10] * np.cos(E[j]) + u[j,11] * np.cos(2*E[j]) + u[j,12] * np.sin(E[j]) + u[j,13]*np.sin(2*E[j])
+        FT[j] = np.sqrt(FR[j]**2 + FS[j]**2 + FW[j]**2)
 
-
-    # Use Newton's EOM 
-    y0Newt = [r0, v0, 0]
+    # Use Newton's EOM
+    y0Newt = np.append((r0, v0), 0)
     YNewt = odeint('Newt_EOM', y0Newt, tspan)
 
-    aNewt = np.zeros(len(tspan), 1)
-    eNewt = np.zeros(len(tspan), 1)
-    iNewt = np.zeros(len(tspan), 1)
-    OmegaNewt = np.zeros(len(tspan), 1)
-    wNewt = np.zeros(len(tspan), 1)
-    thetaNewt = np.zeros(len(tspan), 1)
-    ENewt = np.zeros(len(tspan), 1)
-    MNewt = np.zeros(len(tspan), 1)
+    aNewt = np.zeros((len(tspan), 1))
+    eNewt = np.zeros((len(tspan), 1))
+    iNewt = np.zeros((len(tspan), 1))
+    OmegaNewt = np.zeros((len(tspan), 1))
+    wNewt = np.zeros((len(tspan), 1))
+    thetaNewt = np.zeros((len(tspan), 1))
+    ENewt = np.zeros((len(tspan), 1))
+    MNewt = np.zeros((len(tspan), 1))
 
-    for j in len(tspan):
-        [aNewt[j],eNewt[j],iNewt[j],OmegaNewt[j],wNewt[j],thetaNewt[j],ENewt[j[,MNewt[j]] = rv_to_oe(YNewt[j,1:3],YNewt[j,4:6])
+    for j in range(len(tspan)):
+        [aNewt[j], eNewt[j], iNewt[j], OmegaNewt[j], wNewt[j], thetaNewt[j], ENewt[j], MNewt[j]] = rv_to_oe(YNewt[j,1:3],YNewt[j,4:6])
 
+    plt.figure()
+    plt.subplot(3, 2, 1)
+    plt.plot(tspan, al*RE, tspan, aNewt*RE)
+    plt.subplot(3, 2, 2)
+    plt.plot(tspan, el, tspan, eNewt)
+    plt.subplot(3, 2, 3)
+    plt.plot(tspan, il, tspan, iNewt)
+    plt.subplot(3, 2, 4)
+    plt.plot(tspan, Omegal, tspan, OmegaNewt)
+    plt.subplot(3, 2, 5)
+    plt.plot(tspan, wl, tspan, wNewt)
+    plt.subplot(3, 2, 6)
+    plt.plot(tspan, Ml, tspan, MNewt)
 
 
 def oe_to_rv(oe,t):
-    a=oe[0]
-    e=oe[1]
-    i=oe[2]
-    Omega=oe[3]
-    w=oe[4]
-    M=oe[5]
-    #%Determine orbit type
-    if a<0 or e<0 or e>1 or math.fabs(i)>2*math.pi or math.fabs(Omega)>2*math.pi or math.fabs(w)>2*math.pi: #problem
+    """ Convert the orbital elements to Cartesian """
+    a, e, i, Omega, w, M = oe[0], oe[1], oe[2], oe[3], oe[4], oe[5]
+
+    # Determine orbit type
+    if a<0 or e<0 or e>1 or np.fabs(i)>2*np.pi or np.fabs(Omega)>2*np.pi or np.fabs(w)>2*np.pi:  # problem
         print(a)
         print(e)
         print(i)
@@ -159,15 +170,15 @@ def oe_to_rv(oe,t):
     zhat=np.array([0, 0, 1])
 
     nu=kepler(oe, t)
-    nhat=math.cos(Omega)*xhat+math.sin(Omega)*yhat
+    nhat=np.cos(Omega)*xhat+np.sin(Omega)*yhat
     # hhat=sin(i)*sin(Omega)*xhat-sin(i)*cos(Omega)*yhat+cos(i)*zhat
-    rhatT=-math.cos(i)*math.sin(Omega)*xhat+math.cos(i)*math.cos(Omega)*yhat+math.sin(i)*zhat
-    rmag=a*(1-e**2)/(1+e*math.cos(nu))
-    vmag=math.sqrt(mu/rmag*(2-rmag/a))
-    gamma=math.atan2(e*math.sin(nu),1+e*math.cos(nu))
+    rhatT=-np.cos(i)*np.sin(Omega)*xhat+np.cos(i)*np.cos(Omega)*yhat+np.sin(i)*zhat
+    rmag=a*(1-e**2)/(1+e*np.cos(nu))
+    vmag=np.sqrt(mu/rmag*(2-rmag/a))
+    gamma=np.arctan2(e*np.sin(nu),1+e*np.cos(nu))
     u=w+nu
-    rhat=math.cos(u)*nhat+math.sin(u)*rhatT
-    vhat=math.sin(gamma-u)*nhat+math.cos(gamma-u)*rhatT
+    rhat=np.cos(u)*nhat+np.sin(u)*rhatT
+    vhat=np.sin(gamma-u)*nhat+np.cos(gamma-u)*rhatT
     r=rmag*rhat
     v=vmag*vhat
 
@@ -187,19 +198,19 @@ def kepler(oe,t):
     #Calculate True anamoly
     k = .85
     delta = 1e-14
-    Mstar = M-math.floor(M/(2*math.pi))*2*math.pi
-    if math.fabs(math.sin(Mstar))>1e-10: #check that nu~=0
-        sigma = math.sin(Mstar)/math.fabs(math.sin(Mstar))    #sgn(sin(Mstar))
+    Mstar = M-np.floor(M/(2*np.pi))*2*np.pi
+    if np.fabs(np.sin(Mstar))>1e-10: #check that nu~=0
+        sigma = np.sin(Mstar)/np.fabs(np.sin(Mstar))    #sgn(sin(Mstar))
         x = Mstar+sigma*k*e
         for count in range(1,10):
-            es = e*math.sin(x)
+            es = e*np.sin(x)
             f = x-es-Mstar
-            if math.fabs(f) < delta:
+            if np.fabs(f) < delta:
                 E = x
-                nu = 2*math.atan2(math.sqrt((1+e)/(1-e))*math.tan(E/2),1)
+                nu = 2*np.arctan2(np.sqrt((1+e)/(1-e))*np.tan(E/2),1)
                 break
             else:
-                ec = e*math.cos(x)
+                ec = e*np.cos(x)
                 fp = 1-ec
                 fpp = es
                 fppp = ec
@@ -226,82 +237,86 @@ def find_G_M(a,e,i,w):
     #alpha = [a0R a1R a2R b1R a0S a1S a2S b1S b2S a0W a1W a2W b1W b2W]'; %RSW
 
     #a
-    G[0,3]=np.sqrt(a**3/mu)*e #b1R
-    G[0,4]=2*np.sqrt(a**3/mu)*np.sqrt(1-e**2) #a0S
+    G[0, 3] = np.sqrt(a**3/mu)*e #b1R
+    G[0, 4] = 2*np.sqrt(a**3/mu)*np.sqrt(1-e**2) #a0S
 
 
     #e
-    G[1,3]=.5*np.sqrt(1-e**2) #b1R
-    G[1,4]=-1.5*e #a0S
-    G[1,5]=1 #a1S
-    G[1,6]=-.25*e #a2S
-    G[1,:]=G[1,:]*np.sqrt(a/mu)*np.sqrt(1-e**2)
+    G[1, 3] = .5*np.sqrt(1-e**2) #b1R
+    G[1, 4] = -1.5*e #a0S
+    G[1, 5] = 1 #a1S
+    G[1, 6] = -.25*e #a2S
+    G[1, :] = G[1,:]*np.sqrt(a/mu)*np.sqrt(1-e**2)
 
     #i
-    G[2,9]=-1.5*e*np.cos(w) #a0W
-    G[2,10]=.5*(1+e**2)*np.cos(w) #a1W
-    G[2,11]=-.25*e*np.cos(w) #a2W
-    G[2,12]=-.5*np.sqrt(1-e**2)*np.sin(w) #b1W
-    G[2,13]=.25*e*np.sqrt(1-e**2)*np.sin(w) #b2W
-    G[2,:]=G[2,:]*np.sqrt(a/mu)/np.sqrt(1-e**2)
+    G[2, 9] = -1.5*e*np.cos(w) #a0W
+    G[2, 10] = .5*(1+e**2)*np.cos(w) #a1W
+    G[2, 11] = -.25*e*np.cos(w) #a2W
+    G[2, 12] = -.5*np.sqrt(1-e**2)*np.sin(w) #b1W
+    G[2, 13] = .25*e*np.sqrt(1-e**2)*np.sin(w) #b2W
+    G[2, :] = G[2, :]*np.sqrt(a/mu)/np.sqrt(1-e**2)
 
     #Omega
-    G[3,9]=-1.5*e*np.sin(w) #a0W
-    G[3,10]=.5*(1+e**2)*np.sin(w) #a1W
-    G[3,11]=-.25*e*np.sin(w) #a2W
-    G[3,12]=.5*np.sqrt(1-e**2)*np.cos(w) #b1W
-    G[3,13]=-.25*e*np.sqrt(1-e**2)*np.cos(w) #b2W
-    G[3,:]=G[3,:]*np.sqrt(a/mu)*mpmath.csc(i)/np.sqrt(1-e**2)
+    G[3, 9] = -1.5*e*np.sin(w) #a0W
+    G[3, 10] = 0.5*(1+e**2)*np.sin(w) #a1W
+    G[3, 11] = -0.25*e*np.sin(w) #a2W
+    G[3, 12] = 0.5*np.sqrt(1-e**2)*np.cos(w) #b1W
+    G[3, 13] = -0.25*e*np.sqrt(1-e**2)*np.cos(w) #b2W
+    G[3, :] = G[3, :]*np.sqrt(a/mu)*mpmath.csc(i)/np.sqrt(1-e**2)
 
     #w
-    G[4,0]=e*np.sqrt(1-e**2) #a0R
-    G[4,1]=-.5*np.sqrt(1-e**2) #a1R
-    G[4,7]=.5*(2-e**2) #b1S
-    G[4,8]=-.25*e #b2S
-    G[4,:]=G[4,:]*np.sqrt(a/mu)/e
-    G[4,:]=G[4,:]-np.cos(i)*G[3,:]
+    G[4, 0] = e*np.sqrt(1-e**2) #a0R
+    G[4, 1] = -.5*np.sqrt(1-e**2) #a1R
+    G[4, 7] = .5*(2-e**2) #b1S
+    G[4, 8] = -.25*e #b2S
+    G[4, :] = G[4, :]*np.sqrt(a/mu)/e
+    G[4, :] = G[4, :]-np.cos(i)*G[3,:]
 
     #M
-    G[5,0]=-2-e**2 #a0R
-    G[5,1]=2*e #a1R
-    G[5,3]=-.5*e**2 #a2R
-    G[5,:]=G[5,:]*np.sqrt(a/mu)
-    G[5,:]=G[5,:]+(1 - np.sqrt(1-e**2)) * (G[4,:]+G[3,:])+\
-           2*np.sqrt(1-e**2)*(np.sin(i/2))**2*G[3,:]-(G[4,:]+G[3,:])
+    G[5, 0] = -2-e**2 #a0R
+    G[5, 1] = 2*e #a1R
+    G[5, 3] = -.5*e**2 #a2R
+    G[5, :] = G[5,:]*np.sqrt(a/mu)
+    G[5, :] = G[5,:]+(1 - np.sqrt(1-e**2)) * (G[4,:]+G[3,:])+\
+              2*np.sqrt(1-e**2)*(np.sin(i/2))**2*G[3,:]-(G[4,:]+G[3,:])
 
     return G
 
 
-def findP(t,Pvec):
+def findP(Pvec, t, A, B, R, Q):
     """ Ricatti Equation """
-    P = np.zeros(6)
-    P[:] = Pvec
-    Pdot = -(np.transpose(A)*P+P*A-P*B*(R**-1)*np.transpose(B)*P+Q)
 
-    return Pdot[:]
-
-
-def ASE(t,y):
-    x = y[1:6]+xT
-    Pvec = scipy.interp(t, tspan, Pbig)
-
-    P=np.zeros(6)
-    P[:]=Pvec
-
-    nt=np.sqrt(mu/x[0]**3)
-    F=np.array([np.zeros((5,1)), [nt]])
-
-    u_t = -(R**-1)*np.transpose(B)*P*y[0:5]
-
-    dx = A*x + B*u_t
-    dJ = np.transpose(y[0:5])*Q*y[0:5] + np.transpose(u_t)*R*u_t
-
-    dxl = [[dx],[dJ]]
-
-    return dxl
+    P = np.reshape(Pvec, (6, 6))
+    Pdot = -(A.T.dot(P) + P.dot(A) - P.dot(B).dot(np.linalg.inv(R)).dot(B.T).dot(P) + Q)
+    return Pdot.flatten()
 
 
-if __name__=='__main__':
+def ASE(y, t, A, B, R, Q, xT, Pbig):
+    global iAse
+    yin = np.reshape(y[0:6], (-1,1))
+    x = np.reshape(y[0:6], (-1, 1)) + xT
+    if iAse >= 500:
+        P = np.reshape(Pbig[-1, :], (6, 6))
+    else:
+        P = np.reshape(Pbig[iAse,:], (6, 6))
+    iAse += 1
+    # P = np.interp(tspan, t, Pbig[:, 0])
+    #np.interp(t,tspan,Pbig[:,1-36]
+    nt = np.sqrt(mu/x[0]**3)
+    F = np.array([np.zeros((5, 1)), [nt]])
+
+    u_t = -(np.linalg.inv(R)).dot(B.T).dot(P).dot(yin)
+
+    dx = A.dot(x) + B.dot(u_t)
+    # dJ = np.transpose(yin)*Q*yin + np.transpose(u_t)*R*u_t
+    dJ = yin.T.dot(Q).dot(yin) + u_t.T.dot(R).dot(u_t)
+
+    dxl = np.vstack((dx, dJ))
+
+    return dxl[:,0]
+
+
+if __name__ == '__main__':
     main()
 
 
