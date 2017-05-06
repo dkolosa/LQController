@@ -12,11 +12,9 @@ import scipy
 import mpmath
 from scipy.interpolate import interp1d
 
-iAse = 1
-
 def main():
     # Constants
-    global mu, iAse
+    global mu
     RE = 6378
     deg_to_rad = np.pi/180
     mu = 398600 * 60 ** 4 / RE ** 3
@@ -125,20 +123,22 @@ def main():
         FT[j] = np.sqrt(FR[j]**2 + FS[j]**2 + FW[j]**2)
 
     # Use Newton's EOM
-    y0Newt = np.append((r0, v0), 0)
+
+    y0Newt = np.concatenate((r0, v0, [0]))  # [r, v, F_t]
     YNewt = odeint(Newt_EOM, y0Newt, tspan, args=(u, tspan))
 
-    aNewt = np.zeros((len(tspan), 1))
-    eNewt = np.zeros((len(tspan), 1))
-    iNewt = np.zeros((len(tspan), 1))
-    OmegaNewt = np.zeros((len(tspan), 1))
-    wNewt = np.zeros((len(tspan), 1))
-    thetaNewt = np.zeros((len(tspan), 1))
-    ENewt = np.zeros((len(tspan), 1))
-    MNewt = np.zeros((len(tspan), 1))
+    aNewt = np.zeros(len(tspan))
+    eNewt = np.zeros(len(tspan))
+    iNewt = np.zeros(len(tspan))
+    OmegaNewt = np.zeros(len(tspan))
+    wNewt = np.zeros(len(tspan))
+    thetaNewt = np.zeros(len(tspan))
+    ENewt = np.zeros(len(tspan))
+    MNewt = np.zeros(len(tspan))
 
     for j in range(len(tspan)):
-        [aNewt[j], eNewt[j], iNewt[j], OmegaNewt[j], wNewt[j], thetaNewt[j], ENewt[j], MNewt[j]] = rv_to_oe(YNewt[j,1:3],YNewt[j,4:6])
+        [aNewt[j], eNewt[j], iNewt[j], OmegaNewt[j], wNewt[j], thetaNewt[j], ENewt[j], MNewt[j]] = \
+            rv_to_oe(YNewt[j, 0:3], YNewt[j, 3:6])
 
     plt.figure()
     plt.subplot(3, 2, 1)
@@ -186,7 +186,56 @@ def oe_to_rv(oe, t):
 
     return np.array([r, v])
 
-def rv_to_oe()
+
+def rv_to_oe(r, v):
+
+    r_hat = r / np.linalg.norm(r)
+    h = np.cross(r, v)
+    h_hat = h / np.linalg.norm(h)
+
+    z = [0, 0, 1]
+    n = np.cross(z, h)
+
+    if np.linalg.norm(n) < 1e-8:
+        e_vec = np.cross(v, h)/mu - r_hat
+        energy = 0.5 * np.dot(v,v) - mu/np.linalg.norm(r)
+        a = -m / (2*energy)
+        e = np.linalg.norm(e_vec)
+        i, Omega = 0, 0
+        if abs(e) < 1e-8:
+            w = 0
+        else:
+            w = np.arccos(e_vec[0] / e)
+    else:
+        n_hat = n / np.linalg.norm(n)
+        e_vec = np.cross(v, h)/mu - r_hat
+        energy = .5*np.dot(v,v) - mu/np.linalg.norm(r)
+        a = -mu / (2*energy)
+        e = np.linalg.norm(e_vec)
+        i = np.arccos(np.dot(z,h_hat))
+        Omega = np.arctan2(n_hat[1], n_hat[0])
+        if abs(e) < 1e-8:
+            w = 0
+        else:
+            w = np.arctan2(np.dot(h_hat, np.cross(n_hat, e_vec)),
+                           np.dot(n_hat, e_vec))
+
+    if w < 0:
+        w += 2*np.pi
+    if Omega < 0:
+        Omega += 2*np.pi
+
+    theta = np.arctan2(np.dot(h_hat, np.cross(e_vec, r)), np.dot(e_vec, r))
+    E = 2*np.arctan2(np.sqrt(1-e) * np.tan(theta/2), np.sqrt(1+e))
+
+    if E < 0:
+        E += 2*np.pi
+
+    M = E - e*np.sin(E)
+    if M < 0:
+        M += 2*np.pi
+
+    return [a, e, i, Omega, w, theta, E, M]
 
 
 def kepler(oe, t):
@@ -296,7 +345,7 @@ def findP(Pvec, t, A, B, R, Q):
 
 
 def ASE(y, t, A, B, R, Q, xT, Pbig, tspan):
-    global iAse
+
     yin = np.reshape(y[0:6], (-1,1))
     x = np.reshape(y[0:6], (-1, 1)) + xT
 
@@ -306,8 +355,7 @@ def ASE(y, t, A, B, R, Q, xT, Pbig, tspan):
         Pvec = interp1d(tspan, Pbig, axis=0)(t)
 
     P = np.reshape(Pvec, (6, 6))
-    # P = np.interp(tspan, t, Pbig[:, 0])
-    #np.interp(t,tspan,Pbig[:,1-36]
+
     nt = np.sqrt(mu/x[0]**3)
     # F = np.array([np.zeros((5, 1)), [nt]])
 
@@ -323,7 +371,7 @@ def ASE(y, t, A, B, R, Q, xT, Pbig, tspan):
 
 
 def Newt_EOM(y, t, u, tspan):
-    """ Differntial 2-body problem with Force thrust acceleration"""
+    """ Differntial 2-body problem with Fourier thrust acceleration"""
 
     rx, ry, rz = y[0], y[1], y[2]
     vx, vy, vz = y[3], y[4], y[5]
@@ -335,7 +383,7 @@ def Newt_EOM(y, t, u, tspan):
     r_hat = r / np.linalg.norm(r)
     h = np.cross(r, v)
     h_hat = h / np.linalg.norm(h)
-    hr_hat = np.cross(h_hat, r_hat)
+    # hr_hat = np.cross(h_hat, r_hat)
     e_vec = np.cross(v, h)/mu - r_hat
     e = np.linalg.norm(e_vec)
 
@@ -351,35 +399,34 @@ def Newt_EOM(y, t, u, tspan):
     if E < 0:
         E += 2*np.pi
 
-    index = np.argwhere(tspan == t)
-
     if t > tspan[-1]:
         alpha = np.reshape(u[-1, :], (-1))
     else:
         alpha = np.reshape(interp1d(tspan, u, axis=0)(t), (-1))
 
     # Determine the alpha/beta coefficients for the Thrust Fourier Coefficients
-    # alpha = np.reshape(alpha, (-1))
 
     F_R = alpha[0] + alpha[1]*np.cos(E) + alpha[2]*np.cos(2*E) + alpha[3]*2*np.sin(E)
     F_S = alpha[4] + alpha[5]*np.cos(E) + alpha[6]*np.cos(2*E) + alpha[7]*np.sin(E) + alpha[8]*np.sin(2*E)
     F_W = alpha[9] + alpha[10]*np.cos(E) + alpha[11]*np.cos(2*E) + alpha[12]*np.sin(E) + alpha[13]*np.sin(2*E)
 
     thrust = F_R*r_hat + F_S*r_hat + F_W*r_hat
-
     c = -mu / (np.linalg.norm(r) ** 3)
 
-    dy = np.zeros(7)
+    # dy = np.zeros(7)
 
-    dy[0] = vx
-    dy[1] = vy
-    dy[2] = vz
-    dy[3] = c*rx*thrust[0]
-    dy[4] = c*ry*thrust[1]
-    dy[5] = c*rz*thrust[2]
-    dy[6] = np.sqrt(F_R**2 + F_S**2 + F_W**2)
+    return [vx, vy, vz, c*rx*thrust[0], c*rx*thrust[1], c*ry*thrust[2], np.sqrt(F_R**2 + F_S**2 + F_W**2)]
 
-    return dy
+    # dy[0] = vx
+    # dy[1] = vy
+    # dy[2] = vz
+    # dy[3] = c*rx*thrust[0]
+    # dy[4] = c*ry*thrust[1]
+    # dy[5] = c*rz*thrust[2]
+    # dy[6] = np.sqrt(F_R**2 + F_S**2 + F_W**2)
+    #
+    # return dy
+
 
 if __name__ == '__main__':
     main()
