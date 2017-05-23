@@ -23,6 +23,8 @@ def main():
 
     # Constants
     deg_to_rad = np.pi/180
+    rad_to_deg = 180 / np.pi
+    sec_to_hr = 60**2
 
     # Initial Orbit State
     a0 = 6678 / RE  # km
@@ -32,16 +34,19 @@ def main():
     w0 = 20.0 * deg_to_rad # rad
     M0 = 20.0 * deg_to_rad  # rad
 
-    n0 = np.sqrt(mu / a0 ** 3)  # Mean motion
+
+    # n0 = np.sqrt(mu / a0**3)   # Mean motion
 
     # Initial Conditions
     x0 = np.array([[a0], [e0], [i0], [Omega0], [w0], [M0]])
 
     # transfer time
     t0 = 0
-    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 1
-    dt = ttarg / 100
+    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 3
+    dt = ttarg / 5
     tspan = np.arange(0, ttarg, dt)
+
+    # tspan = np.arange(0, 10*(24* 60 ** 2), 100)
     tspan_bk = tspan[::-1]
 
     # convert orbital elements to Cartesian
@@ -54,14 +59,15 @@ def main():
     Omegatarg = 20.0 * deg_to_rad
     wtarg = 20.0 * deg_to_rad
     Mtarg = 20.0 * deg_to_rad
+
     xT = np.array([[atarg], [etarg], [itarg], 
                    [Omegatarg], [wtarg], [Mtarg]])
 
-    icl = x0-xT
-    Kf = 100*np.eye(6)
-    Q = 0.1*np.eye(6)
+    icl = x0 - xT
+    Kf = 100 * np.eye(6)
+    Q = 0.1 * np.eye(6)
     Q[5, 5] = 0.0
-    R = 1*np.eye(14)
+    R = 1 * np.eye(14)
 
     # Low Fidelity Model Parameters
     A = np.zeros((6, 6))
@@ -82,8 +88,7 @@ def main():
     wl = Yl[:,4] + wtarg
     Ml = np.zeros((len(tspan), 1))
 
-    rl = np.zeros((len(al), 3))
-    vl = np.zeros((len(al), 3))
+    rl, vl = (np.zeros((len(al), 3)) for _ in range(2))
     Jl = Yl[:,6]
 
     for j in range(1, len(tspan)):
@@ -110,14 +115,9 @@ def main():
     # #     fthat = rhat[k,:] + what[k,:] + shat[k,:]
     # #     that[k,:] = np.true_divide(fthat, np.linalg.norm(fthat))
 
-    E = np.zeros(len(tspan))
-    FR = np.zeros(len(tspan))
-    FS = np.zeros(len(tspan))
-    FW = np.zeros(len(tspan))
-    FT = np.zeros(len(tspan))
+    E, FR, FS, FW, FT = (np.zeros(len(tspan)) for _ in range(5))
 
     # Compute the Input vector
-    start = time.time()
     for j in range(len(tspan)):
         Pvec = Pbig[j,:]
         P = np.reshape(Pvec, (6,6))
@@ -129,58 +129,56 @@ def main():
         FS[j] = u[j,4] + u[j,5] * np.cos(E[j]) + u[j,6] * np.cos(2*E[j]) + u[j,7] * np.sin(E[j]) + u[j,8]*np.sin(2*E[j])
         FW[j] = u[j,9] + u[j,10] * np.cos(E[j]) + u[j,11] * np.cos(2*E[j]) + u[j,12] * np.sin(E[j]) + u[j,13]*np.sin(2*E[j])
         FT[j] = np.sqrt(FR[j]**2 + FS[j]**2 + FW[j]**2)
-    end = time.time()
-    print(end-start)
+
+    y_two_body = odeint(two_body, np.concatenate((r0, v0)), tspan)
+
     # Use Newton's EOM
     y0Newt = np.concatenate((r0, v0, [0]))  # [r, v, F_t]
     YNewt = odeint(Newt_EOM, y0Newt, tspan, args=(u, tspan))
 
-    aNewt = np.zeros(len(tspan))
-    eNewt = np.zeros(len(tspan))
-    iNewt = np.zeros(len(tspan))
-    OmegaNewt = np.zeros(len(tspan))
-    wNewt = np.zeros(len(tspan))
-    thetaNewt = np.zeros(len(tspan))
-    ENewt = np.zeros(len(tspan))
-    MNewt = np.zeros(len(tspan))
+    aNewt, eNewt, iNewt, OmegaNewt, wNewt, thetaNewt, ENewt, MNewt = (np.zeros(len(tspan)) for _ in range(8))
+
 
     for j in range(len(tspan)):
         [aNewt[j], eNewt[j], iNewt[j], OmegaNewt[j], wNewt[j], thetaNewt[j], ENewt[j], MNewt[j]] = rv_to_oe(YNewt[j, 0:3], YNewt[j, 3:6])
 
-    rad_to_deg = 180/np.pi
+
     plt.figure()
     plt.subplot(3, 2, 1)
-    plt.plot(tspan, al*RE)
+    plt.plot(tspan/sec_to_hr, al*RE, tspan/sec_to_hr, aNewt*RE)
     plt.ylabel('a')
     plt.subplot(3, 2, 2)
-    plt.plot(tspan, el)
+    plt.plot(tspan/sec_to_hr, el, tspan/sec_to_hr, eNewt)
     plt.ylabel('e')
     plt.subplot(3, 2, 3)
-    plt.plot(tspan, il*rad_to_deg)
+    plt.plot(tspan/sec_to_hr, il, tspan/sec_to_hr, iNewt)
     plt.ylabel('i')
     plt.subplot(3, 2, 4)
-    plt.plot(tspan, Omegal*rad_to_deg)
+    plt.plot(tspan/sec_to_hr, Omegal, tspan/sec_to_hr, OmegaNewt)
     plt.ylabel('$\Omega$')
     plt.subplot(3, 2, 5)
-    plt.plot(tspan, wl*rad_to_deg)
+    plt.plot(tspan/sec_to_hr, wl, tspan/sec_to_hr, wNewt)
     plt.ylabel('$\omega$')
     plt.subplot(3, 2, 6)
-    plt.plot(tspan, Ml*rad_to_deg)
+    plt.plot(tspan/sec_to_hr, Ml, tspan/sec_to_hr, MNewt)
     plt.ylabel('M')
 
-    plt.figure(2)
-    FRplot = plt.plot(tspan, FR, label='FR')
-    FSplot = plt.plot(tspan, FS, label='FS')
-    FWplot = plt.plot(tspan, FW, label='FW')
-    plt.legend()
+    # plt.figure(2)
+    # FRplot = plt.plot(tspan/sec_to_hr, FR, label='FR')
+    # FSplot = plt.plot(tspan/sec_to_hr, FS, label='FS')
+    # FWplot = plt.plot(tspan/sec_to_hr, FW, label='FW')
+    # plt.legend()
+    #
+    # # plot the x, y, and z
+    # plt.figure(3)
+    # xyplt = plt.plot(rl[:, 0] * RE, rl[:, 1]*RE, label='xy')
+    # plt.xlabel('x')
+    # plt.ylabel('y')
+    #
+    # plt.figure(4)
+    # Jplt = plt.scatter(tspan, Jl)
 
-    # plot the x, y, and z
-    plt.figure(3)
-    xyplt = plt.plot(rl[:, 0] * RE, rl[:, 1]*RE, label='xy')
-    plt.xlabel('x')
-    plt.ylabel('y')
-
-    # plt.show()
+    plt.show()
 
 
 def oe_to_rv(oe, t):
@@ -188,7 +186,7 @@ def oe_to_rv(oe, t):
     a, e, i, Omega, w, M = oe[0], oe[1], oe[2], oe[3], oe[4], oe[5]
 
     # Determine orbit type
-    if a < 0 or e < 0 or e>1 or abs(i) > 2*np.pi or abs(Omega)>2*np.pi or abs(w)>2*np.pi:  # problem
+    if a < 0 or e < 0 or e > 1 or abs(i) > 2*np.pi or abs(Omega)>2*np.pi or abs(w)>2*np.pi:  # problem
         print(a)
         print(e)
         print(i)
@@ -367,15 +365,12 @@ def find_G_M(a, e, i, w):
 def findP(Pvec, t, A, B, R, Q):
     """ Differential Ricatti Equation """
 
-    P = np.reshape(Pvec, (6, 6))
+    P = np.zeros((6, 6))
+    # P = np.reshape(Pvec, (6, 6))
+    P[:] = Pvec
     Pdot = -(A.T.dot(P) + P.dot(A) - P.dot(B).dot(np.linalg.inv(R)).dot(B.T).dot(P) + Q)
     return Pdot.flatten()
 
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
