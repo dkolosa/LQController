@@ -41,11 +41,11 @@ def main():
     x0 = np.array([[a0], [e0], [i0], [Omega0], [w0], [M0]])
 
     # transfer time
-    t0 = 0
+    t0 = 0.0
     ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 2
     # ttarg = 24*60**2 * 2
     dt = ttarg / 100
-    tspan = np.arange(0, ttarg, dt)
+    tspan = np.arange(0.0, ttarg, dt)
 
     # tspan = np.arange(0, 10*(24* 60 ** 2), 100)
     tspan_bk = tspan[::-1]
@@ -123,7 +123,7 @@ def main():
         Pvec = Pbig[j,:]
         P = np.reshape(Pvec, (6,6))
         u[j,:] = -np.linalg.inv(R).dot(B.T).dot(P).dot(Yl[j,0:6]).T
-        E[j] = kepler([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]], tspan)
+        E[j] = kepler([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]], tspan[j])
 
         # Compute the Thrust Fourier Coefficients
     FR = u[:,0] + u[:,1] * np.cos(E) + u[:,2] * np.cos(2*E) + u[:,3] * np.sin(E)
@@ -289,7 +289,7 @@ def kepler(oe, t):
     if abs(np.sin(Mstar)) > 1e-10: #check that nu~=0
         sigma = np.sin(Mstar)/abs(np.sin(Mstar))    #sgn(sin(Mstar))
         x = Mstar + sigma*k*e
-        for count in range(0, 11):
+        for count in range(0, 10):
             es = e*np.sin(x)
             f = x-es-Mstar
             if abs(f) < delta:
@@ -303,6 +303,7 @@ def kepler(oe, t):
                 fppp = ec
                 dx = -f/(fp+dx*fpp/2+dx**2*fppp/6)
                 x = x+dx
+
         if count == 10: #check that Newton's method converges
             nu = 'undefined'
     #       else %test that computations were correct
@@ -313,7 +314,7 @@ def kepler(oe, t):
         E = 0
     #time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
 
-    return nu
+    return E
 
 
 def find_G_M(a, e, i, w):
