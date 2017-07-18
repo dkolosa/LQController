@@ -27,9 +27,9 @@ def main():
     sec_to_hr = 60**2
 
     # Initial Orbit State
-    a0 = 6678 / RE  # km
-    e0 = 0.67
-    i0 = 20.0 * deg_to_rad # rad
+    a0 = 6700 / RE  # km
+    e0 = 0.2
+    i0 = 10 * deg_to_rad # rad
     Omega0 = 20.0 * deg_to_rad  # rad
     w0 = 20.0 * deg_to_rad # rad
     M0 = 20.0 * deg_to_rad  # rad
@@ -42,8 +42,9 @@ def main():
 
     # transfer time
     t0 = 0
-    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 3
-    dt = ttarg / 5
+    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 2
+    # ttarg = 24*60**2 * 2
+    dt = ttarg / 100
     tspan = np.arange(0, ttarg, dt)
 
     # tspan = np.arange(0, 10*(24* 60 ** 2), 100)
@@ -53,12 +54,12 @@ def main():
     [r0, v0] = oe_to_rv(x0, t0)
 
     # target orbit state
-    atarg = 1.1517  #7100/RE
-    etarg = .7370
-    itarg = 10.0 * deg_to_rad
-    Omegatarg = 20.0 * deg_to_rad
-    wtarg = 20.0 * deg_to_rad
-    Mtarg = 20.0 * deg_to_rad
+    atarg = 7100/RE  #7100/RE
+    etarg = 0.4
+    itarg = 5 * deg_to_rad
+    Omegatarg = 22.0 * deg_to_rad
+    wtarg = 22.0 * deg_to_rad
+    Mtarg = 22.0 * deg_to_rad
 
     xT = np.array([[atarg], [etarg], [itarg], 
                    [Omegatarg], [wtarg], [Mtarg]])
@@ -125,10 +126,11 @@ def main():
         E[j] = kepler([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]], tspan)
 
         # Compute the Thrust Fourier Coefficients
-        FR[j] = u[j,0] + u[j,1] * np.cos(E[j]) + u[j,2] * np.cos(2*E[j]) + u[j,3] * np.sin(E[j])
-        FS[j] = u[j,4] + u[j,5] * np.cos(E[j]) + u[j,6] * np.cos(2*E[j]) + u[j,7] * np.sin(E[j]) + u[j,8]*np.sin(2*E[j])
-        FW[j] = u[j,9] + u[j,10] * np.cos(E[j]) + u[j,11] * np.cos(2*E[j]) + u[j,12] * np.sin(E[j]) + u[j,13]*np.sin(2*E[j])
-        FT[j] = np.sqrt(FR[j]**2 + FS[j]**2 + FW[j]**2)
+    FR = u[:,0] + u[:,1] * np.cos(E) + u[:,2] * np.cos(2*E) + u[:,3] * np.sin(E)
+    FS = u[:,4] + u[:,5] * np.cos(E) + u[:,6] * np.cos(2*E) + u[:,7] * np.sin(E) + u[:,8]*np.sin(2*E)
+    FW = u[:,9] + u[:,10] * np.cos(E) + u[:,11] * np.cos(2*E) + u[:,12] * np.sin(E) + u[:,13]*np.sin(2*E)
+    FT = np.sqrt(FR**2 + FS**2 + FW**2)
+
 
     y_two_body = odeint(two_body, np.concatenate((r0, v0)), tspan)
 
@@ -145,29 +147,35 @@ def main():
 
     plt.figure()
     plt.subplot(3, 2, 1)
-    plt.plot(tspan/sec_to_hr, al*RE, tspan/sec_to_hr, aNewt*RE)
+    plt.plot(tspan, al)
+    # plt.plot(tspan/sec_to_hr, aNewt*RE)
     plt.ylabel('a')
     plt.subplot(3, 2, 2)
-    plt.plot(tspan/sec_to_hr, el, tspan/sec_to_hr, eNewt)
+    plt.plot(tspan, el)
+    # plt.plot(tspan/sec_to_hr, eNewt)
     plt.ylabel('e')
     plt.subplot(3, 2, 3)
-    plt.plot(tspan/sec_to_hr, il, tspan/sec_to_hr, iNewt)
+    plt.plot(tspan, il)
+    # plt.plot(tspan/sec_to_hr, iNewt)
     plt.ylabel('i')
     plt.subplot(3, 2, 4)
-    plt.plot(tspan/sec_to_hr, Omegal, tspan/sec_to_hr, OmegaNewt)
+    plt.plot(tspan, Omegal * (180/np.pi))
+    # plt.plot(tspan/sec_to_hr, OmegaNewt)
     plt.ylabel('$\Omega$')
     plt.subplot(3, 2, 5)
-    plt.plot(tspan/sec_to_hr, wl, tspan/sec_to_hr, wNewt)
+    plt.plot(tspan, wl * (180/np.pi))
+    # plt.plot(tspan/sec_to_hr, wNewt)
     plt.ylabel('$\omega$')
     plt.subplot(3, 2, 6)
-    plt.plot(tspan/sec_to_hr, Ml, tspan/sec_to_hr, MNewt)
+    plt.plot(tspan, Ml)
+    # plt.plot(tspan/sec_to_hr, MNewt)
     plt.ylabel('M')
 
-    # plt.figure(2)
-    # FRplot = plt.plot(tspan/sec_to_hr, FR, label='FR')
-    # FSplot = plt.plot(tspan/sec_to_hr, FS, label='FS')
-    # FWplot = plt.plot(tspan/sec_to_hr, FW, label='FW')
-    # plt.legend()
+    plt.figure(2)
+    FRplot = plt.plot(tspan, FR, label='FR')
+    FSplot = plt.plot(tspan, FS, label='FS')
+    FWplot = plt.plot(tspan, FW, label='FW')
+    plt.legend()
     #
     # # plot the x, y, and z
     # plt.figure(3)
@@ -366,8 +374,8 @@ def findP(Pvec, t, A, B, R, Q):
     """ Differential Ricatti Equation """
 
     P = np.zeros((6, 6))
-    # P = np.reshape(Pvec, (6, 6))
-    P[:] = Pvec
+    P = np.reshape(Pvec, (6, 6))
+    # P[:] = Pvec
     Pdot = -(A.T.dot(P) + P.dot(A) - P.dot(B).dot(np.linalg.inv(R)).dot(B.T).dot(P) + Q)
     return Pdot.flatten()
 

@@ -17,8 +17,8 @@ def ASE(y, t, A, B, R, Q, xT, Pbig, tspan):
     if t > tspan[-1]:
         Pvec = Pbig[-1, :]
     else:
-        # Pvec = interp1d(tspan, Pbig, axis=0)(t)
         Pvec = interp1d(tspan, Pbig, axis=0)(t)
+        # Pvec = np.interp(t, tspan, Pbig)
 
     P = np.reshape(Pvec, (6, 6))
 
@@ -67,10 +67,12 @@ def Newt_EOM(y, t, u, tspan):
         E += 2*np.pi
 
     if t > tspan[-1]:
-        alpha = u[-1, :], (-1)
+        alpha = u[-1, :]
     else:
         alpha = interp1d(tspan, u, axis=0)(t)
 
+    alpha = np.reshape(alpha, (-1, 1))
+    print('alpha:\n', alpha.shape)
     # Determine the alpha/beta coefficients for the Thrust Fourier Coefficients
     F_R = alpha[0] + alpha[1]*np.cos(E) + alpha[2]*np.cos(2*E) + alpha[3]*np.sin(E)
     F_S = alpha[4] + alpha[5]*np.cos(E) + alpha[6]*np.cos(2*E) + alpha[7]*np.sin(E) + alpha[8]*np.sin(2*E)
