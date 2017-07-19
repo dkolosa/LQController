@@ -57,6 +57,7 @@ def Newt_EOM(y, t, u, tspan):
 
     e = norm(e_vec)
 
+
     # Check for negative
     if (1-e)/(1+e) < 0:
         print("e: ", e, "\t", "t: ", t, '\n')
@@ -74,6 +75,7 @@ def Newt_EOM(y, t, u, tspan):
         alpha = interp1d(tspan, u, axis=0)(t)
 
     alpha = np.reshape(alpha, (-1, 1))
+    # print(alpha)
     # print('alpha:\n', alpha.shape)
     # Determine the alpha/beta coefficients for the Thrust Fourier Coefficients
     F_R = alpha[0] + alpha[1]*np.cos(E) + alpha[2]*np.cos(2*E) + alpha[3]*np.sin(E)
@@ -88,9 +90,9 @@ def Newt_EOM(y, t, u, tspan):
     dy[0] = vx
     dy[1] = vy
     dy[2] = vz
-    dy[3] = c*rx*thrust[0]
-    dy[4] = c*ry*thrust[1]
-    dy[5] = c*rz*thrust[2]
+    dy[3] = c*rx+thrust[0]
+    dy[4] = c*ry+thrust[1]
+    dy[5] = c*rz+thrust[2]
     dy[6] = np.sqrt(F_R**2 + F_W**2 + F_S**2)
 
     return dy

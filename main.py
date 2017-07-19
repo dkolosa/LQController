@@ -28,11 +28,11 @@ def main():
 
     # Initial Orbit State
     a0 = 6700 / RE  # km
-    e0 = .25
-    i0 = 2 * deg_to_rad # rad
-    Omega0 = 15.0 * deg_to_rad  # rad
-    w0 = 10.0 * deg_to_rad # rad
-    M0 = 10.0 * deg_to_rad  # rad
+    e0 = 0.3
+    i0 = 10 * deg_to_rad # rad
+    Omega0 = 10.0 * deg_to_rad  # rad
+    w0 = 20.0 * deg_to_rad # rad
+    M0 = 20.0 * deg_to_rad  # rad
 
 
     # n0 = np.sqrt(mu / a0**3)   # Mean motion
@@ -42,9 +42,9 @@ def main():
 
     # transfer time
     t0 = 0.0
-    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 3
-    # ttarg = 24*60**2 * 2
-    dt = ttarg / 10
+    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 20
+    # ttarg = 24*60**2 * 2 / 60**2
+    dt = ttarg / 100
     tspan = np.arange(0.0, ttarg, dt)
 
     tspan_bk = tspan[::-1]
@@ -53,12 +53,12 @@ def main():
     [r0, v0] = oe_to_rv(x0, t0)
 
     # target orbit state
-    atarg = 8000/RE  #7100/RE
-    etarg = 0.2
-    itarg = 12 * deg_to_rad
-    Omegatarg = 22.0 * deg_to_rad
-    wtarg = 22.0 * deg_to_rad
-    Mtarg = 22.0 * deg_to_rad
+    atarg = 7124 /RE  #7100/RE
+    etarg = 0.5
+    itarg = 15.0 * deg_to_rad
+    Omegatarg = 15 * deg_to_rad
+    wtarg = 25 * deg_to_rad
+    Mtarg = 25.0 * deg_to_rad
 
     xT = np.array([[atarg], [etarg], [itarg], 
                    [Omegatarg], [wtarg], [Mtarg]])
@@ -148,27 +148,27 @@ def main():
     plt.figure()
     plt.subplot(3, 2, 1)
     plt.plot(tspan, al)
-    # plt.plot(tspan/sec_to_hr, aNewt*RE)
+    plt.plot(tspan, aNewt)
     plt.ylabel('a')
     plt.subplot(3, 2, 2)
     plt.plot(tspan, el)
-    # plt.plot(tspan/sec_to_hr, eNewt)
+    plt.plot(tspan, eNewt)
     plt.ylabel('e')
     plt.subplot(3, 2, 3)
     plt.plot(tspan, il)
-    # plt.plot(tspan/sec_to_hr, iNewt)
+    plt.plot(tspan, iNewt)
     plt.ylabel('i')
     plt.subplot(3, 2, 4)
-    plt.plot(tspan, Omegal * (180/np.pi))
-    # plt.plot(tspan/sec_to_hr, OmegaNewt)
+    plt.plot(tspan, Omegal * rad_to_deg)
+    plt.plot(tspan, OmegaNewt* rad_to_deg)
     plt.ylabel('$\Omega$')
     plt.subplot(3, 2, 5)
-    plt.plot(tspan, wl * (180/np.pi))
-    # plt.plot(tspan/sec_to_hr, wNewt)
+    plt.plot(tspan, wl * rad_to_deg)
+    plt.plot(tspan, wNewt * rad_to_deg)
     plt.ylabel('$\omega$')
     plt.subplot(3, 2, 6)
     plt.plot(tspan, Ml)
-    # plt.plot(tspan/sec_to_hr, MNewt)
+    plt.plot(tspan, MNewt)
     plt.ylabel('M')
 
     plt.figure(2)
