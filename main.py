@@ -17,14 +17,12 @@ import time
 
 RE = 6378
 mu = 398600 * 60 ** 4 / RE ** 3
-
+# Constants
+deg_to_rad = np.pi/180
+rad_to_deg = 180 / np.pi
+sec_to_hr = 60**2
 
 def main():
-
-    # Constants
-    deg_to_rad = np.pi/180
-    rad_to_deg = 180 / np.pi
-    sec_to_hr = 60**2
 
     # Initial Orbit State
     a0 = 6700 / RE  # km
@@ -144,49 +142,12 @@ def main():
     for j in range(len(tspan)):
         [aNewt[j], eNewt[j], iNewt[j], OmegaNewt[j], wNewt[j], thetaNewt[j], ENewt[j], MNewt[j]] = rv_to_oe(YNewt[j, 0:3], YNewt[j, 3:6])
 
+    
 
-    plt.figure()
-    plt.subplot(3, 2, 1)
-    plt.plot(tspan, al)
-    plt.plot(tspan, aNewt)
-    plt.ylabel('a')
-    plt.subplot(3, 2, 2)
-    plt.plot(tspan, el)
-    plt.plot(tspan, eNewt)
-    plt.ylabel('e')
-    plt.subplot(3, 2, 3)
-    plt.plot(tspan, il)
-    plt.plot(tspan, iNewt)
-    plt.ylabel('i')
-    plt.subplot(3, 2, 4)
-    plt.plot(tspan, Omegal * rad_to_deg)
-    plt.plot(tspan, OmegaNewt* rad_to_deg)
-    plt.ylabel('$\Omega$')
-    plt.subplot(3, 2, 5)
-    plt.plot(tspan, wl * rad_to_deg)
-    plt.plot(tspan, wNewt * rad_to_deg)
-    plt.ylabel('$\omega$')
-    plt.subplot(3, 2, 6)
-    plt.plot(tspan, Ml)
-    plt.plot(tspan, MNewt)
-    plt.ylabel('M')
-
-    plt.figure(2)
-    FRplot = plt.plot(tspan, FR, label='FR')
-    FSplot = plt.plot(tspan, FS, label='FS')
-    FWplot = plt.plot(tspan, FW, label='FW')
-    plt.legend()
-    #
-    # # plot the x, y, and z
-    # plt.figure(3)
-    # xyplt = plt.plot(rl[:, 0] * RE, rl[:, 1]*RE, label='xy')
-    # plt.xlabel('x')
-    # plt.ylabel('y')
-    #
-    # plt.figure(4)
-    # Jplt = plt.scatter(tspan, Jl)
-
-    plt.show()
+    generate_plots(tspan, al, el, il, Omegal, wl, Ml, 
+                   aNewt, eNewt, iNewt, OmegaNewt, wNewt, MNewt,
+                   atarg, etarg, itarg, Omegatarg, wtarg, Mtarg,
+                   FR, FS, FW)
 
 
 def oe_to_rv(oe, t):
@@ -381,5 +342,59 @@ def findP(Pvec, t, A, B, R, Q):
     return Pdot.flatten()
 
 
+
+
+
+
+
+def generate_plots(tspan, al, el, il, Omegal, wl, Ml, 
+                   aNewt, eNewt, iNewt, OmegaNewt, wNewt, MNewt,
+                   atarg, etarg, itarg, Omegatarg, wtarg, Mtarg,
+                   FR, FS, FW):
+
+    plt.figure(figsize=(8,6))
+    plt.subplot(3, 2, 1)
+    plt.plot(tspan, al)
+    plt.plot(tspan, aNewt)
+    plt.ylabel('a')
+    plt.subplot(3, 2, 2)
+    plt.plot(tspan, el)
+    plt.plot(tspan, eNewt)
+    plt.ylabel('e')
+    plt.subplot(3, 2, 3)
+    plt.plot(tspan, il)
+    plt.plot(tspan, iNewt)
+    plt.ylabel('i')
+    plt.subplot(3, 2, 4)
+    plt.plot(tspan, Omegal * rad_to_deg)
+    plt.plot(tspan, OmegaNewt* rad_to_deg)
+    plt.ylabel('$\Omega$')
+    plt.subplot(3, 2, 5)
+    plt.plot(tspan, wl * rad_to_deg)
+    plt.plot(tspan, wNewt * rad_to_deg)
+    plt.ylabel('$\omega$')
+    plt.subplot(3, 2, 6)
+    plt.plot(tspan, Ml)
+    plt.plot(tspan, MNewt)
+    plt.ylabel('M')
+
+    plt.figure(2)
+    FRplot = plt.plot(tspan, FR, label='FR')
+    FSplot = plt.plot(tspan, FS, label='FS')
+    FWplot = plt.plot(tspan, FW, label='FW')
+    plt.legend()
+    #
+    # # plot the x, y, and z
+    # plt.figure(3)
+    # xyplt = plt.plot(rl[:, 0] * RE, rl[:, 1]*RE, label='xy')
+    # plt.xlabel('x')
+    # plt.ylabel('y')
+    #
+    # plt.figure(4)
+    # Jplt = plt.scatter(tspan, Jl)
+
+    plt.show()
+
+    
 if __name__ == '__main__':
     main()
