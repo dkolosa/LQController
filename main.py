@@ -28,11 +28,11 @@ def main():
 
     # Initial Orbit State
     a0 = 6700 / RE  # km
-    e0 = 0.2
-    i0 = 10 * deg_to_rad # rad
-    Omega0 = 20.0 * deg_to_rad  # rad
-    w0 = 20.0 * deg_to_rad # rad
-    M0 = 20.0 * deg_to_rad  # rad
+    e0 = .25
+    i0 = 2 * deg_to_rad # rad
+    Omega0 = 15.0 * deg_to_rad  # rad
+    w0 = 10.0 * deg_to_rad # rad
+    M0 = 10.0 * deg_to_rad  # rad
 
 
     # n0 = np.sqrt(mu / a0**3)   # Mean motion
@@ -42,21 +42,20 @@ def main():
 
     # transfer time
     t0 = 0.0
-    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 2
+    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 3
     # ttarg = 24*60**2 * 2
-    dt = ttarg / 100
+    dt = ttarg / 10
     tspan = np.arange(0.0, ttarg, dt)
 
-    # tspan = np.arange(0, 10*(24* 60 ** 2), 100)
     tspan_bk = tspan[::-1]
 
     # convert orbital elements to Cartesian
     [r0, v0] = oe_to_rv(x0, t0)
 
     # target orbit state
-    atarg = 7100/RE  #7100/RE
-    etarg = 0.4
-    itarg = 5 * deg_to_rad
+    atarg = 8000/RE  #7100/RE
+    etarg = 0.2
+    itarg = 12 * deg_to_rad
     Omegatarg = 22.0 * deg_to_rad
     wtarg = 22.0 * deg_to_rad
     Mtarg = 22.0 * deg_to_rad
@@ -78,7 +77,7 @@ def main():
     # optimize LF model
     yol = np.append(icl, 0)
     Pbig = odeint(findP, Kf.flatten(), tspan_bk, args=(A, B, R, Q))
-    Pbig = Pbig[::-1]
+    Pbig = np.flipud(Pbig)
 
     Yl = odeint(ASE, yol, tspan, args=(A, B, R, Q, xT, Pbig, tspan))
 
@@ -98,7 +97,7 @@ def main():
         Ml[j] %= (2*np.pi)
         xl = np.array([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]])
         # Convert orbital elements to Cartesian
-        [rl[j, 0:3], vl[j, 0:3]] = oe_to_rv(xl, tspan[j])
+        [rl[j,:], vl[j,:]] = oe_to_rv(xl, tspan[j])
 
     # #calculate the direction in terms of the x,y,z
     # rhat = np.zeros((len(tspan), 3))
@@ -122,7 +121,8 @@ def main():
     for j in range(len(tspan)):
         Pvec = Pbig[j,:]
         P = np.reshape(Pvec, (6,6))
-        u[j,:] = -np.linalg.inv(R).dot(B.T).dot(P).dot(Yl[j,0:6]).T
+        u[j,:] = -np.linalg.inv(R).dot(B.T).dot(P).dot(Yl[j,0:6])
+
         E[j] = kepler([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]], tspan[j])
 
         # Compute the Thrust Fourier Coefficients
@@ -135,7 +135,7 @@ def main():
     y_two_body = odeint(two_body, np.concatenate((r0, v0)), tspan)
 
     # Use Newton's EOM
-    y0Newt = np.concatenate((r0, v0, [0]))  # [r, v, F_t]
+    y0Newt = np.concatenate((r0, v0, [0])).flatten()  # [r, v, F_t]
     YNewt = odeint(Newt_EOM, y0Newt, tspan, args=(u, tspan))
 
     aNewt, eNewt, iNewt, OmegaNewt, wNewt, thetaNewt, ENewt, MNewt = (np.zeros(len(tspan)) for _ in range(8))
@@ -227,7 +227,7 @@ def rv_to_oe(r, v):
     h = np.cross(r, v)
     h_hat = h / np.linalg.norm(h)
 
-    z = [0, 0, 1]
+    z = np.array([0, 0, 1])
     n = np.cross(z, h)
 
     if np.linalg.norm(n) < 1e-8:
