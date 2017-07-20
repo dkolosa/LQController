@@ -7,17 +7,14 @@ refer to LICENSE.txt
 perform ASE targeting as an LQ optimal control algorithm
 """
 
-import numpy as np
-from scipy.integrate import odeint
-import mpmath
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import mpmath
+from scipy.integrate import odeint
 import time
 
 # Custom modules
 from Mathmodels import *
 from Orbit_Transformations import *
-
 
 # Constants
 RE = 6378
@@ -26,42 +23,38 @@ deg_to_rad = np.pi/180
 rad_to_deg = 180 / np.pi
 sec_to_hr = 60**2
 
+
 def main():
 
     # Initial Orbit State
-    a0 = 6700 / RE  # km
-    e0 = 0.3
-    i0 = 10 * deg_to_rad # rad
-    Omega0 = 10.0 * deg_to_rad  # rad
-    w0 = 20.0 * deg_to_rad # rad
-    M0 = 20.0 * deg_to_rad  # rad
-
-
-    # n0 = np.sqrt(mu / a0**3)   # Mean motion
+    a0 = 41160 / RE  # km
+    e0 = 0.01
+    i0 = 1 * deg_to_rad  # rad
+    Omega0 = 20.0 * deg_to_rad  # rad
+    w0 = 15.0 * deg_to_rad  # rad
+    M0 = 15.0 * deg_to_rad  # rad
 
     # Initial Conditions
     x0 = np.array([[a0], [e0], [i0], [Omega0], [w0], [M0]])
 
     # transfer time
     t0 = 0.0
-    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 5
+    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 20
     # ttarg = 24*60**2 * 2 / 60**2
     dt = ttarg / 500
     tspan = np.arange(0.0, ttarg, dt)
 
-    tspan_bk = tspan[::-1]
+    # target orbit state
+    atarg = 42150 /RE  #7100/RE
+    etarg = 0.4
+    itarg = 1.0 * deg_to_rad
+    Omegatarg = 60.0 * deg_to_rad
+    wtarg = 80.0 * deg_to_rad
+    Mtarg = 80.0 * deg_to_rad
 
     # convert orbital elements to Cartesian
     [r0, v0] = oe_to_rv(x0, t0)
-
-    # target orbit state
-    atarg = 7124 /RE  #7100/RE
-    etarg = 0.5
-    itarg = 15.0 * deg_to_rad
-    Omegatarg = 15 * deg_to_rad
-    wtarg = 25 * deg_to_rad
-    Mtarg = 25.0 * deg_to_rad
-
+    
     xT = np.array([[atarg], [etarg], [itarg], 
                    [Omegatarg], [wtarg], [Mtarg]])
 
@@ -78,7 +71,7 @@ def main():
 
     # optimize LF model
     yol = np.append(icl, 0)
-    Pbig = odeint(findP, Kf.flatten(), tspan_bk, args=(A, B, R, Q))
+    Pbig = odeint(findP, Kf.flatten(), tspan[::-1], args=(A, B, R, Q))
     Pbig = np.flipud(Pbig)
 
     Yl = odeint(ASE, yol, tspan, args=(A, B, R, Q, xT, Pbig, tspan))
@@ -93,13 +86,14 @@ def main():
     rl, vl = (np.zeros((len(al), 3)) for _ in range(2))
     Jl = Yl[:,6]
 
+    nt = np.sqrt(mu/al**3)
+    Ml = Yl[:,5] + Mtarg+nt*tspan
+    Ml %= 2*np.pi
+    xl = np.column_stack((al, el, il, Omegal, wl, Ml))
+
     for j in range(1, len(tspan)):
-        nt=np.sqrt(mu/al[j]**3)
-        Ml[j] = Yl[j,5] + Mtarg+nt*tspan[j]
-        Ml[j] %= (2*np.pi)
-        xl = np.array([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]])
         # Convert orbital elements to Cartesian
-        [rl[j,:], vl[j,:]] = oe_to_rv(xl, tspan[j])
+        [rl[j,:], vl[j,:]] = oe_to_rv(xl[j,:], tspan[j])
 
     # #calculate the direction in terms of the x,y,z
     # rhat = np.zeros((len(tspan), 3))
@@ -124,7 +118,6 @@ def main():
         Pvec = Pbig[j,:]
         P = np.reshape(Pvec, (6,6))
         u[j,:] = -np.linalg.inv(R).dot(B.T).dot(P).dot(Yl[j,0:6])
-
         E[j] = kepler([al[j], el[j], il[j], Omegal[j], wl[j], Ml[j]], tspan[j])
 
         # Compute the Thrust Fourier Coefficients
@@ -133,8 +126,12 @@ def main():
     FW = u[:,9] + u[:,10] * np.cos(E) + u[:,11] * np.cos(2*E) + u[:,12] * np.sin(E) + u[:,13]*np.sin(2*E)
     FT = np.sqrt(FR**2 + FS**2 + FW**2)
 
+    conv_to_mN = RE*1000/60**4*1000
+    FR *= conv_to_mN
+    FW *= conv_to_mN
+    FS *= conv_to_mN
 
-    y_two_body = odeint(two_body, np.concatenate((r0, v0)), tspan)
+    # y_two_body = odeint(two_body, np.concatenate((r0, v0)), tspan)
 
     # Use Newton's EOM
     y0Newt = np.concatenate((r0, v0, [0])).flatten()  # [r, v, F_t]
@@ -146,9 +143,8 @@ def main():
     for j in range(len(tspan)):
         [aNewt[j], eNewt[j], iNewt[j], OmegaNewt[j], wNewt[j], thetaNewt[j], ENewt[j], MNewt[j]] = rv_to_oe(YNewt[j, 0:3], YNewt[j, 3:6])
 
-    
 
-    generate_plots(tspan, al, el, il, Omegal, wl, Ml, 
+    generate_plots(tspan, xl,
                    aNewt, eNewt, iNewt, OmegaNewt, wNewt, MNewt,
                    atarg, etarg, itarg, Omegatarg, wtarg, Mtarg,
                    FR, FS, FW,
@@ -218,12 +214,7 @@ def findP(Pvec, t, A, B, R, Q):
     return Pdot.flatten()
 
 
-
-
-
-
-
-def generate_plots(tspan, al, el, il, Omegal, wl, Ml, 
+def generate_plots(tspan, xl,
                    aNewt, eNewt, iNewt, OmegaNewt, wNewt, MNewt,
                    atarg, etarg, itarg, Omegatarg, wtarg, Mtarg,
                    FR, FS, FW,
@@ -232,46 +223,53 @@ def generate_plots(tspan, al, el, il, Omegal, wl, Ml,
     plt.figure(figsize=(8,6))
     plt.subplot(3, 2, 1)
     plt.plot(tspan[-1], atarg, 'ro')
-    plt.plot(tspan, al)
+    plt.plot(tspan, xl[:,0])
     plt.plot(tspan, aNewt)
     plt.ylabel('a')
+
     plt.subplot(3, 2, 2)
     plt.plot(tspan[-1], etarg, 'ro')
-    plt.plot(tspan, el)
+    plt.plot(tspan, xl[:,1])
     plt.plot(tspan, eNewt)
     plt.ylabel('e')
+
     plt.subplot(3, 2, 3)
     plt.plot(tspan[-1], itarg, 'ro')
-    plt.plot(tspan, il)
+    plt.plot(tspan, xl[:,2])
     plt.plot(tspan, iNewt)
     plt.ylabel('i')
+
     plt.subplot(3, 2, 4)
-    plt.plot(tspan[-1], Omegatarg * rad_to_deg, 'ro')
-    plt.plot(tspan, Omegal * rad_to_deg)
-    plt.plot(tspan, OmegaNewt* rad_to_deg)
+    plt.plot(tspan[-1], Omegatarg, 'ro')
+    plt.plot(tspan, xl[:,3])
+    plt.plot(tspan, OmegaNewt)
     plt.ylabel('$\Omega$')
+
     plt.subplot(3, 2, 5)
-    plt.plot(tspan[-1], wtarg * rad_to_deg, 'ro')
-    plt.plot(tspan, wl * rad_to_deg)
-    plt.plot(tspan, wNewt * rad_to_deg)
+    plt.plot(tspan[-1], wtarg, 'ro')
+    plt.plot(tspan, xl[:,4])
+    plt.plot(tspan, wNewt)
     plt.ylabel('$\omega$')
+
     plt.subplot(3, 2, 6)
     plt.plot(tspan[-1], Mtarg, 'ro')
-    plt.plot(tspan, Ml * rad_to_deg)
-    plt.plot(tspan, MNewt * rad_to_deg)
+    plt.plot(tspan, xl[:,5])
+    plt.plot(tspan, MNewt)
     plt.ylabel('M')
 
     plt.figure(2)
     FRplot = plt.plot(tspan, FR, label='FR')
     FSplot = plt.plot(tspan, FS, label='FS')
     FWplot = plt.plot(tspan, FW, label='FW')
+    plt.xlabel('time(hr)')
+    plt.ylabel('mN')
     plt.legend()
 
     # plot the x, y, and z in 3d plot
-    plt.figure(3)
-    plt.axes(projection='3d')
-    plt.plot(YNewt[:,0], YNewt[:,1], YNewt[:,2])
-    plt.plot(Yl[:,0], Yl[:,1], Yl[:,2])
+    # plt.figure(3)
+    # plt.axes(projection='3d')
+    # plt.plot(YNewt[:,0], YNewt[:,1], YNewt[:,2])
+    # plt.plot(Yl[:,0], Yl[:,1], Yl[:,2])
 
     plt.show()
 

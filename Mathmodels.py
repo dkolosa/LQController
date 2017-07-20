@@ -57,7 +57,6 @@ def Newt_EOM(y, t, u, tspan):
 
     e = norm(e_vec)
 
-
     # Check for negative
     if (1-e)/(1+e) < 0:
         print("e: ", e, "\t", "t: ", t, '\n')
