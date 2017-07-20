@@ -11,6 +11,7 @@ import numpy as np
 from scipy.integrate import odeint
 import mpmath
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import time
 
 # Custom modules
@@ -43,9 +44,9 @@ def main():
 
     # transfer time
     t0 = 0.0
-    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 20
+    ttarg = 2 * np.pi * np.sqrt(a0 ** 3 / mu) * 5
     # ttarg = 24*60**2 * 2 / 60**2
-    dt = ttarg / 100
+    dt = ttarg / 500
     tspan = np.arange(0.0, ttarg, dt)
 
     tspan_bk = tspan[::-1]
@@ -150,7 +151,8 @@ def main():
     generate_plots(tspan, al, el, il, Omegal, wl, Ml, 
                    aNewt, eNewt, iNewt, OmegaNewt, wNewt, MNewt,
                    atarg, etarg, itarg, Omegatarg, wtarg, Mtarg,
-                   FR, FS, FW)
+                   FR, FS, FW,
+                   YNewt, Yl)
 
 def find_G_M(a, e, i, w):
     """ Use Gaussian equations to compute inputs  """
@@ -224,7 +226,8 @@ def findP(Pvec, t, A, B, R, Q):
 def generate_plots(tspan, al, el, il, Omegal, wl, Ml, 
                    aNewt, eNewt, iNewt, OmegaNewt, wNewt, MNewt,
                    atarg, etarg, itarg, Omegatarg, wtarg, Mtarg,
-                   FR, FS, FW):
+                   FR, FS, FW,
+                   YNewt, Yl):
 
     plt.figure(figsize=(8,6))
     plt.subplot(3, 2, 1)
@@ -263,15 +266,12 @@ def generate_plots(tspan, al, el, il, Omegal, wl, Ml,
     FSplot = plt.plot(tspan, FS, label='FS')
     FWplot = plt.plot(tspan, FW, label='FW')
     plt.legend()
-    #
-    # # plot the x, y, and z
-    # plt.figure(3)
-    # xyplt = plt.plot(rl[:, 0] * RE, rl[:, 1]*RE, label='xy')
-    # plt.xlabel('x')
-    # plt.ylabel('y')
-    #
-    # plt.figure(4)
-    # Jplt = plt.scatter(tspan, Jl)
+
+    # plot the x, y, and z in 3d plot
+    plt.figure(3)
+    plt.axes(projection='3d')
+    plt.plot(YNewt[:,0], YNewt[:,1], YNewt[:,2])
+    plt.plot(Yl[:,0], Yl[:,1], Yl[:,2])
 
     plt.show()
 
