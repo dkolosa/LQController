@@ -11,13 +11,16 @@ import numpy as np
 from scipy.integrate import odeint
 import mpmath
 import matplotlib.pyplot as plt
-from Mathmodels import *
-
 import time
 
+# Custom modules
+from Mathmodels import *
+from Orbit_Transformations import *
+
+
+# Constants
 RE = 6378
 mu = 398600 * 60 ** 4 / RE ** 3
-# Constants
 deg_to_rad = np.pi/180
 rad_to_deg = 180 / np.pi
 sec_to_hr = 60**2
@@ -62,7 +65,7 @@ def main():
                    [Omegatarg], [wtarg], [Mtarg]])
 
     icl = x0 - xT
-    Kf = 100 * np.eye(6)
+    Kf = 10 * np.eye(6)
     Q = 0.1 * np.eye(6)
     Q[5, 5] = 0.0
     R = 1 * np.eye(14)
@@ -149,135 +152,6 @@ def main():
                    atarg, etarg, itarg, Omegatarg, wtarg, Mtarg,
                    FR, FS, FW)
 
-
-def oe_to_rv(oe, t):
-    """ Convert the orbital elements to Cartesian """
-    a, e, i, Omega, w, M = oe[0], oe[1], oe[2], oe[3], oe[4], oe[5]
-
-    # Determine orbit type
-    if a < 0 or e < 0 or e > 1 or abs(i) > 2*np.pi or abs(Omega)>2*np.pi or abs(w)>2*np.pi:  # problem
-        print(a)
-        print(e)
-        print(i)
-        print(Omega)
-        print(w)
-        print('Invalid orbital element(s)')
-    xhat = np.array([1, 0, 0])
-    yhat = np.array([0, 1, 0])
-    zhat = np.array([0, 0, 1])
-
-    nu = kepler(oe, t)
-    nhat = np.cos(Omega)*xhat+np.sin(Omega)*yhat
-    # hhat=sin(i)*sin(Omega)*xhat-sin(i)*cos(Omega)*yhat+cos(i)*zhat
-    rhatT = -np.cos(i)*np.sin(Omega)*xhat + np.cos(i)*np.cos(Omega)*yhat + np.sin(i)*zhat
-    rmag = a*(1-e**2)/(1+e*np.cos(nu))
-    vmag = np.sqrt(mu/rmag*(2-rmag/a))
-    gamma = np.arctan2(e*np.sin(nu), 1+e*np.cos(nu))
-    u = w + nu
-    rhat = np.cos(u)*nhat + np.sin(u)*rhatT
-    vhat = np.sin(gamma-u)*nhat + np.cos(gamma-u)*rhatT
-    r = rmag*rhat
-    v = vmag*vhat
-
-    return [r, v]
-
-
-def rv_to_oe(r, v):
-
-    r_hat = r / np.linalg.norm(r)
-    h = np.cross(r, v)
-    h_hat = h / np.linalg.norm(h)
-
-    z = np.array([0, 0, 1])
-    n = np.cross(z, h)
-
-    if np.linalg.norm(n) < 1e-8:
-        e_vec = np.cross(v, h)/mu - r_hat
-        energy = 0.5 * np.dot(v,v) - mu/np.linalg.norm(r)
-        a = -m / (2*energy)
-        e = np.linalg.norm(e_vec)
-        i, Omega = 0, 0
-        if abs(e) < 1e-8:
-            w = 0
-        else:
-            w = np.arccos(e_vec[0] / e)
-    else:
-        n_hat = n / np.linalg.norm(n)
-        e_vec = np.cross(v, h)/mu - r_hat
-        energy = .5*np.dot(v,v) - mu/np.linalg.norm(r)
-        a = -mu / (2*energy)
-        e = np.linalg.norm(e_vec)
-        i = np.arccos(np.dot(z,h_hat))
-        Omega = np.arctan2(n_hat[1], n_hat[0])
-        if abs(e) < 1e-8:
-            w = 0
-        else:
-            w = np.arctan2(np.dot(h_hat, np.cross(n_hat, e_vec)),
-                           np.dot(n_hat, e_vec))
-
-    if w < 0:
-        w += 2*np.pi
-    if Omega < 0:
-        Omega += 2*np.pi
-
-    theta = np.arctan2(np.dot(h_hat, np.cross(e_vec, r)), np.dot(e_vec, r))
-    E = 2*np.arctan2(np.sqrt(1-e) * np.tan(theta/2), np.sqrt(1+e))
-
-    if E < 0:
-        E += 2*np.pi
-
-    M = E - e*np.sin(E)
-    if M < 0:
-        M += 2*np.pi
-
-    return [a, e, i, Omega, w, theta, E, M]
-
-
-def kepler(oe, t):
-    """ Using kepler's equations to calculate True Anomaly"""
-    a = oe[0]
-    e = oe[1]
-    i = oe[2]
-    omega = oe[3]
-    w = oe[4]
-    M = oe[5]
-    dx = 0
-
-    #Calculate True anamoly
-    k = .85
-    delta = 1e-14
-    Mstar = M-np.floor(M/(2*np.pi))*2*np.pi
-    if abs(np.sin(Mstar)) > 1e-10: #check that nu~=0
-        sigma = np.sin(Mstar)/abs(np.sin(Mstar))    #sgn(sin(Mstar))
-        x = Mstar + sigma*k*e
-        for count in range(0, 10):
-            es = e*np.sin(x)
-            f = x-es-Mstar
-            if abs(f) < delta:
-                E = x
-                nu = 2*np.arctan2(np.sqrt((1+e)/(1-e))*np.tan(E/2), 1)
-                break
-            else:
-                ec = e*np.cos(x)
-                fp = 1-ec
-                fpp = es
-                fppp = ec
-                dx = -f/(fp+dx*fpp/2+dx**2*fppp/6)
-                x = x+dx
-
-        if count == 10: #check that Newton's method converges
-            nu = 'undefined'
-    #       else %test that computations were correct
-    #       time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
-
-    else:
-        nu = 0
-        E = 0
-    #time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
-
-    return E
-
-
 def find_G_M(a, e, i, w):
     """ Use Gaussian equations to compute inputs  """
 
@@ -354,28 +228,34 @@ def generate_plots(tspan, al, el, il, Omegal, wl, Ml,
 
     plt.figure(figsize=(8,6))
     plt.subplot(3, 2, 1)
+    plt.plot(tspan[-1], atarg, 'ro')
     plt.plot(tspan, al)
     plt.plot(tspan, aNewt)
     plt.ylabel('a')
     plt.subplot(3, 2, 2)
+    plt.plot(tspan[-1], etarg, 'ro')
     plt.plot(tspan, el)
     plt.plot(tspan, eNewt)
     plt.ylabel('e')
     plt.subplot(3, 2, 3)
+    plt.plot(tspan[-1], itarg, 'ro')
     plt.plot(tspan, il)
     plt.plot(tspan, iNewt)
     plt.ylabel('i')
     plt.subplot(3, 2, 4)
+    plt.plot(tspan[-1], Omegatarg * rad_to_deg, 'ro')
     plt.plot(tspan, Omegal * rad_to_deg)
     plt.plot(tspan, OmegaNewt* rad_to_deg)
     plt.ylabel('$\Omega$')
     plt.subplot(3, 2, 5)
+    plt.plot(tspan[-1], wtarg * rad_to_deg, 'ro')
     plt.plot(tspan, wl * rad_to_deg)
     plt.plot(tspan, wNewt * rad_to_deg)
     plt.ylabel('$\omega$')
     plt.subplot(3, 2, 6)
-    plt.plot(tspan, Ml)
-    plt.plot(tspan, MNewt)
+    plt.plot(tspan[-1], Mtarg, 'ro')
+    plt.plot(tspan, Ml * rad_to_deg)
+    plt.plot(tspan, MNewt * rad_to_deg)
     plt.ylabel('M')
 
     plt.figure(2)
