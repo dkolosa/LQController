@@ -12,20 +12,16 @@ def oe_to_rv(oe, t):
 
     # Determine orbit type
     if a < 0 or e < 0 or e > 1 or abs(i) > 2*np.pi or abs(Omega)>2*np.pi or abs(w)>2*np.pi:  # problem
-        print(a)
-        print(e)
-        print(i)
-        print(Omega)
-        print(w)
+        print(f'{a:{a} \t e:{e}, \t i:{i},\t omega:{omega}, \t w:{w}}')
         print('Invalid orbital element(s)')
     xhat = np.array([1, 0, 0])
     yhat = np.array([0, 1, 0])
     zhat = np.array([0, 0, 1])
 
     nu = kepler(oe, t)
-    nhat = np.cos(Omega)*xhat+np.sin(Omega)*yhat
-    rhatT = -np.cos(i)*np.sin(Omega)*xhat + np.cos(i)*np.cos(Omega)*yhat + np.sin(i)*zhat
-    rmag = a*(1-e**2)/(1+e*np.cos(nu))
+    nhat = math.cos(Omega)*xhat+math.sin(Omega)*yhat
+    rhatT = -math.cos(i)*math.sin(Omega)*xhat + math.cos(i)*math.cos(Omega)*yhat + math.sin(i)*zhat
+    rmag = a*(1-e**2)/(1+e*math.cos(nu))
     vmag = np.sqrt(mu/rmag*(2-rmag/a))
     gamma = np.arctan2(e*np.sin(nu), 1+e*np.cos(nu))
     u = w + nu
@@ -90,12 +86,7 @@ def rv_to_oe(r, v):
 
 def kepler(oe, t):
     """ Using kepler's equations to calculate True Anomaly"""
-    a = oe[0]
-    e = oe[1]
-    i = oe[2]
-    omega = oe[3]
-    w = oe[4]
-    M = oe[5]
+    a, e, i, Omega, w, M = oe[0], oe[1], oe[2], oe[3], oe[4], oe[5]
     dx = 0
 
     #Calculate True anamoly
@@ -125,5 +116,4 @@ def kepler(oe, t):
     else:
         nu = 0
         E = 0
-
     return E

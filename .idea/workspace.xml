@@ -2,14 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="32c61431-7fb1-431e-b419-83fe3fdd9534" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/LQController.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/LQController.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml___jb_tmp___" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/LICENSE.txt" beforeDir="false" afterPath="$PROJECT_DIR$/LICENSE.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Mathmodels.py" beforeDir="false" afterPath="$PROJECT_DIR$/Mathmodels.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Orbit_Transformations.py" beforeDir="false" afterPath="$PROJECT_DIR$/Orbit_Transformations.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
@@ -110,8 +104,16 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1493873329360</updated>
-      <workItem from="1565838567717" duration="5786000" />
+      <workItem from="1565838567717" duration="6977000" />
     </task>
+    <task id="LOCAL-00001" summary="updated matrix multiplication vectorized lqr attitude">
+      <created>1565844404301</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1565844404301</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TodoView">
@@ -137,7 +139,13 @@
       </map>
     </option>
   </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="updated matrix multiplication vectorized lqr attitude" />
+    <option name="LAST_COMMIT_MESSAGE" value="updated matrix multiplication vectorized lqr attitude" />
+  </component>
   <component name="WindowStateProjectService">
+    <state x="568" y="82" key="CommitChangelistDialog2" />
+    <state x="568" y="82" key="CommitChangelistDialog2/2560.1440/1680.1050" />
     <state x="545" y="273" key="FileChooserDialogImpl" />
     <state x="545" y="273" key="FileChooserDialogImpl/2560.1440/1680.1050" />
     <state width="2514" height="527" key="GridCell.Tab.0.bottom" />
@@ -158,13 +166,15 @@
     <state width="2514" height="275" key="GridCell.Tab.1.right/2560.1440/1680.1050" />
     <state x="646" y="301" key="SettingsEditor" />
     <state x="646" y="301" key="SettingsEditor/2560.1440/1680.1050" />
+    <state x="636" y="275" key="Vcs.Push.Dialog" />
+    <state x="636" y="275" key="Vcs.Push.Dialog/2560.1440/1680.1050" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/main.py</url>
-          <line>51</line>
+          <line>49</line>
           <option name="timeStamp" value="141" />
         </line-breakpoint>
       </breakpoints>
@@ -178,6 +188,6 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/LQController$Unnamed.coverage" NAME="Unnamed Coverage Results" MODIFIED="1565844272133" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/LQController$Unnamed.coverage" NAME="Unnamed Coverage Results" MODIFIED="1565845496662" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

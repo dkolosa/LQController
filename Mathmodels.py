@@ -20,9 +20,6 @@ def ASE(y, t, A, B, R, Q, xT, Pbig, tspan):
 
     P = np.reshape(Pvec, (6, 6))
 
-    # nt = np.sqrt(mu/x[0]**3)
-    # F = np.array([np.zeros((5, 1)), [nt]])
-
     u_t = -inv(R) @ B.T @ P @ yin
 
     dx = A @ x + B @ u_t
