@@ -1,5 +1,6 @@
 
 import numpy as np
+import math
 
 RE = 6378
 mu = 398600 * 60 ** 4 / RE ** 3
@@ -23,7 +24,6 @@ def oe_to_rv(oe, t):
 
     nu = kepler(oe, t)
     nhat = np.cos(Omega)*xhat+np.sin(Omega)*yhat
-    # hhat=sin(i)*sin(Omega)*xhat-sin(i)*cos(Omega)*yhat+cos(i)*zhat
     rhatT = -np.cos(i)*np.sin(Omega)*xhat + np.cos(i)*np.cos(Omega)*yhat + np.sin(i)*zhat
     rmag = a*(1-e**2)/(1+e*np.cos(nu))
     vmag = np.sqrt(mu/rmag*(2-rmag/a))
@@ -76,14 +76,14 @@ def rv_to_oe(r, v):
         Omega += 2*np.pi
 
     theta = np.arctan2(np.dot(h_hat, np.cross(e_vec, r)), np.dot(e_vec, r))
-    E = 2*np.arctan2(np.sqrt(1-e) * np.tan(theta/2), np.sqrt(1+e))
+    E = 2*math.atan2(math.sqrt(1-e) * math.tan(theta/2), math.sqrt(1+e))
 
     if E < 0:
-        E += 2*np.pi
+        E += 2*math.pi
 
-    M = E - e*np.sin(E)
+    M = E - e*math.sin(E)
     if M < 0:
-        M += 2*np.pi
+        M += 2*math.pi
 
     return [a, e, i, Omega, w, theta, E, M]
 
@@ -101,19 +101,19 @@ def kepler(oe, t):
     #Calculate True anamoly
     k = .85
     delta = 1e-14
-    Mstar = M-np.floor(M/(2*np.pi))*2*np.pi
-    if abs(np.sin(Mstar)) > 1e-10: #check that nu~=0
-        sigma = np.sin(Mstar)/abs(np.sin(Mstar))    #sgn(sin(Mstar))
+    Mstar = M-math.floor(M/(2*math.pi))*2*math.pi
+    if abs(math.sin(Mstar)) > 1e-10: #check that nu~=0
+        sigma = math.sin(Mstar)/abs(math.sin(Mstar))    #sgn(sin(Mstar))
         x = Mstar + sigma*k*e
         for count in range(0, 10):
-            es = e*np.sin(x)
+            es = e*math.sin(x)
             f = x-es-Mstar
             if abs(f) < delta:
                 E = x
-                nu = 2*np.arctan2(np.sqrt((1+e)/(1-e))*np.tan(E/2), 1)
+                nu = 2*math.atan2(math.sqrt((1+e)/(1-e))*math.tan(E/2), 1)
                 break
             else:
-                ec = e*np.cos(x)
+                ec = e*math.cos(x)
                 fp = 1-ec
                 fpp = es
                 fppp = ec
@@ -122,12 +122,8 @@ def kepler(oe, t):
 
         if count == 10: #check that Newton's method converges
             nu = 'undefined'
-    #       else %test that computations were correct
-    #       time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
-
     else:
         nu = 0
         E = 0
-    #time=(E-e*math.sin(E))/math.sqrt(mu/a**3)+Tau
 
     return E

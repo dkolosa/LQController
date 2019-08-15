@@ -23,10 +23,10 @@ def ASE(y, t, A, B, R, Q, xT, Pbig, tspan):
     # nt = np.sqrt(mu/x[0]**3)
     # F = np.array([np.zeros((5, 1)), [nt]])
 
-    u_t = -inv(R).dot(B.T).dot(P).dot(yin)
+    u_t = -inv(R) @ B.T @ P @ yin
 
-    dx = A.dot(x) + B.dot(u_t)
-    dJ = yin.T.dot(Q).dot(yin) + u_t.T.dot(R).dot(u_t)
+    dx = A @ x + B @ u_t
+    dJ = yin.T @ Q @ yin + u_t.T @ R @ u_t
 
     dxl = np.vstack((dx, dJ))
 
@@ -74,9 +74,7 @@ def Newt_EOM(y, t, u, tspan):
         alpha = interp1d(tspan, u, axis=0)(t)
 
     alpha = np.reshape(alpha, (-1, 1))
-    # print(alpha)
-    # print('alpha:\n', alpha.shape)
-    # Determine the alpha/beta coefficients for the Thrust Fourier Coefficients
+
     F_R = alpha[0] + alpha[1]*np.cos(E) + alpha[2]*np.cos(2*E) + alpha[3]*np.sin(E)
     F_S = alpha[4] + alpha[5]*np.cos(E) + alpha[6]*np.cos(2*E) + alpha[7]*np.sin(E) + alpha[8]*np.sin(2*E)
     F_W = alpha[9] + alpha[10]*np.cos(E) + alpha[11]*np.cos(2*E) + alpha[12]*np.sin(E) + alpha[13]*np.sin(2*E)
